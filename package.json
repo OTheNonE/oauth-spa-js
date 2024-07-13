@@ -1,0 +1,31 @@
+{
+  "name": "aps-spa-auth-js",
+  "version": "0.1.0",
+  "description": "Single Page Application Authentication Client for Autodesk Platform Services",
+
+  "type": "module",
+  "main": "./dist/commonjs/index.js",
+  "types": "./dist/commonjs/index.d.ts",
+  "module": "./dist/esm/index.mjs",
+  "exports": {
+    "import": {
+      "types": "./dist/esm/index.d.mts",
+      "default": "./dist/esm/index.js"
+    },
+    "require": {
+      "types": "./dist/commonjs/index.d.ts",
+      "default": "./dist/commonjs/index.js"
+    }
+  },
+  
+  "scripts": {
+    "test": "test",
+    "build": "tsc"
+  },
+  "author": "Ólavur Nón",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.14.10",
+    "typescript": "^5.5.3"
+  }
+}
