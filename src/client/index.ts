@@ -1,6 +1,8 @@
 import { generateCodeChallenge, generateCodeVerifier } from "../challenge"
 import { inBrowser } from "../utilities"
 
+export type APSAuthClient = ReturnType<typeof createAPSAuthClient>
+
 export type CreateAPSAuthClientOptionsType = {
     clientId: string,
     authorizationEndpoint: string,
@@ -129,6 +131,10 @@ export function createAPSAuthClient(client_options: CreateAPSAuthClientOptionsTy
         if (returnTo) window.location.href = returnTo
     }
 
+    function isAuthenticated() {
+        return state.access_token ? true : false
+    }
+
     /* STATE HANDLING METHODS */
     function setTokens(params: { access_token?: string, refresh_token?: string }) {
         const { access_token, refresh_token } = params
@@ -151,9 +157,9 @@ export function createAPSAuthClient(client_options: CreateAPSAuthClientOptionsTy
     }
 
     function getTokens() {
-        const token = localStorage.getItem(ACCESS_TOKEN_KEY);
+        const access_token = localStorage.getItem(ACCESS_TOKEN_KEY);
         const refresh_token = localStorage.getItem(REFRESH_TOKEN_KEY);
-        return { token, refresh_token }
+        return { access_token, refresh_token }
     }
 
     function setCodeVerifier(code_verifier: string) {
@@ -178,9 +184,10 @@ export function createAPSAuthClient(client_options: CreateAPSAuthClientOptionsTy
     }
 
     return {
-        logout,
         loginWithRedirect,
         handleRedirectCallback,
+        isAuthenticated,
+        logout,
         getTokens,
     }
 }
