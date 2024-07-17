@@ -1,28 +1,51 @@
 {
-  "name": "aps-spa-auth-js",
-  "version": "0.1.1",
-  "description": "Single Page Application Authentication Client for Autodesk Platform Services",
-  
-  "type": "module",
-  "main": "dist/cjs/index.js",
-  "types": "dist/cjs/index.d.ts",
-  "module": "dist/esm/index.js",
-  "exports": {
-    "require": "./dist/cjs/index.js",
-    "import": "./dist/esm/index.js"
-  },
+	"name": "aps-spa-auth-js",
+	"version": "0.1.1",
+	"description": "Single Page Application Authentication Client for Autodesk Platform Services",
 
-  
-  "scripts": {
-    "test": "test",
-    "build": "npm run build:cjs && npm run build:esm",
-    "build:cjs": "tsc -p tsconfig.cjs.json",
-    "build:esm": "tsc -p tsconfig.esm.json"
-  },
-  "author": "Ólavur Nón",
-  "license": "MIT",
-  "devDependencies": {
-    "@types/node": "^20.14.10",
-    "typescript": "^5.5.3"
-  }
+	"type": "module",
+	"main": "dist/cjs/index.js",
+	"types": "dist/cjs/index.d.ts",
+	"module": "dist/esm/index.js",
+	"exports": {
+		"require": "./dist/cjs/index.js",
+		"import": "./dist/esm/index.js"
+	},
+
+
+	"scripts": {
+		"dev": "vite dev",
+		"preview": "vite preview",
+		"package": "svelte-kit sync && svelte-package && publint",
+		"prepublishOnly": "npm run package",
+		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
+		"test": "test",
+		"build": "npm run build:cjs && npm run build:esm",
+		"build:cjs": "tsc -p tsconfig.cjs.json",
+		"build:esm": "tsc -p tsconfig.esm.json"
+	},
+	"author": "Ólavur Nón",
+	"license": "MIT",
+	"files": [
+		"dist",
+		"!dist/**/*.test.*",
+		"!dist/**/*.spec.*"
+	],
+	"peerDependencies": {
+		"svelte": "^5.0.0-next.1"
+	},
+	"devDependencies": {
+		"@sveltejs/adapter-auto": "^3.0.0",
+		"@sveltejs/kit": "^2.0.0",
+		"@sveltejs/package": "^2.0.0",
+		"@sveltejs/vite-plugin-svelte": "^3.0.0",
+		"publint": "^0.1.9",
+		"svelte": "^5.0.0-next.1",
+		"svelte-check": "^3.6.0",
+		"tslib": "^2.4.1",
+		"typescript": "^5.0.0",
+		"vite": "^5.0.11"
+	},
+	"svelte": "./dist/index.js"
 }

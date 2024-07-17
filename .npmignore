@@ -1,4 +1,14 @@
-src
+.svelte-kit
 node_modules
+src
+static
+test
+.env
+.gitignore
+.npmrc
+package-lock.json
+svelte.config.js
 tsconfig.cjs.json
 tsconfig.esm.json
+tsconfig.json
+vite.config.ts

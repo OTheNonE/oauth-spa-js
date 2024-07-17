@@ -1,6 +1,7 @@
-
 export { 
     createAPSAuthClient,
+    setContextAPSAuthClient,
+    getContextAPSAuthClient,
     type APSAuthClient,
     type CreateAPSAuthClientOptionsType, 
     type LoginWithRedirectOptionType,

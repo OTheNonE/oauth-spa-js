@@ -1,5 +1,16 @@
+import { getContext, setContext } from "svelte"
 import { generateCodeChallenge, generateCodeVerifier } from "../challenge"
 import { inBrowser } from "../utilities"
+
+const client_context_key = Symbol('auth-client-key')
+
+export function setContextAPSAuthClient(client: APSAuthClient) {
+    setContext(client_context_key, client)
+}
+
+export function getContextAPSAuthClient(): ReturnType<typeof createAPSAuthClient> {
+    return getContext(client_context_key)
+}
 
 export type APSAuthClient = ReturnType<typeof createAPSAuthClient>
 
@@ -88,6 +99,9 @@ export function createAPSAuthClient(client_options: CreateAPSAuthClientOptionsTy
         const code_verifier = getCodeVerifier()
         clearCodeVerifier()
 
+        console.log(code)
+        console.log(code_verifier)
+
         if (!code) {
             console.error("No code exists!")
             return
@@ -109,7 +123,6 @@ export function createAPSAuthClient(client_options: CreateAPSAuthClientOptionsTy
                 grant_type: "authorization_code",
             }).toString()
         }
-
 
         const result = await fetch(tokenEndpoint, init)
 
@@ -178,8 +191,8 @@ export function createAPSAuthClient(client_options: CreateAPSAuthClientOptionsTy
     }
 
     function getCodeFromSearchParams() {
-        const urlParams = new URLSearchParams(window.location.search)
-        const code = urlParams.get("code")
+        const params = new URLSearchParams(window.location.search)
+        const code = params.get("code")
         return code
     }
 
