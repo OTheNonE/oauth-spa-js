@@ -1,5 +1,5 @@
-# Single-Page Authorization Client for Autodesk Platform Services
-A JavaScript client for gaining access to Autodesk Platform Services within single-page applications (inspired by [Auth0](https://github.com/auth0/auth0-spa-js)). The client obtains access tokens by using the [PKCE (Proof Key for Code Exchange) authorization flow for public clients](https://aps.autodesk.com/en/docs/oauth/v2/tutorials/get-3-legged-token-pkce/get-3-legged-token-pkce/).
+# Autodesk Platform Services | Single-Page Applications | Authorization Client
+A JS-SDK for gaining access to Autodesk Platform Services within Single-Page Applications (inspired by [Auth0](https://github.com/auth0/auth0-spa-js)). The client obtains access tokens by using the [PKCE (Proof Key for Code Exchange) authorization flow for public clients](https://aps.autodesk.com/en/docs/oauth/v2/tutorials/get-3-legged-token-pkce/get-3-legged-token-pkce/).
 
 ## Getting Started
 
