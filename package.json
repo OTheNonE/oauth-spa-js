@@ -3,7 +3,7 @@
 	"name": "aps-spa-auth-js",
 	"description": "Single-Page Application Authorization Client for Autodesk Platform Services",
 	"license": "MIT",
-	"version": "0.2.1",
+	"version": "0.2.2",
 	"homepage": "https://github.com/OTheNonE/aps-spa-auth-js",
 	"repository": {
 		"type": "git",
@@ -54,6 +54,5 @@
 		"tslib": "^2.4.1",
 		"typescript": "^5.0.0",
 		"vite": "^5.0.11"
-	},
-	"svelte": "./dist/index.js"
+	}
 }
