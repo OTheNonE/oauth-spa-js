@@ -1,58 +1,55 @@
-# create-svelte
+# Autodesk Platform Services - SPA Auth Client
+A JavaScript client for gaining access to Autodesk Platform Services within single-page applications (inspired by [Auth0](https://github.com/auth0/auth0-spa-js)). The client obtains access tokens using the [PKCE (Proof Key for Code Exchange) authorization flow for public clients](https://aps.autodesk.com/en/docs/oauth/v2/reference/http/gettoken-POST/#section-1-authorization-code-grant-type).
 
-Everything you need to build a Svelte library, powered by [`create-svelte`](https://github.com/sveltejs/kit/tree/main/packages/create-svelte).
+# Getting Started
 
-Read more about creating a library [in the docs](https://kit.svelte.dev/docs/packaging).
-
-## Creating a project
-
-If you're seeing this, you've probably already done this step. Congrats!
+### Installation
+Using npm in your project directory run the following command:
 
 ```bash
-# create a new project in the current directory
-npm create svelte@latest
-
-# create a new project in my-app
-npm create svelte@latest my-app
+npm install aps-spa-auth-js
 ```
 
-## Developing
+### Configure your application
+Create a Single Page Application in [Autodesk Platform Services - Applications](https://aps.autodesk.com/hubs/@personal/applications/) and store the Client ID within your application (in a `.env`-file). Specify an authorization callback url to be used in your application (e.g. http://localhost:8000/auth/autodesk/callback or https://example.com/auth/autodesk/callback)
 
-Once you've created a project and installed dependencies with `npm install` (or `pnpm install` or `yarn`), start a development server:
-
-```bash
-npm run dev
-
-# or start the server and open the app in a new browser tab
-npm run dev -- --open
+### Integrate authentication into your application
+Create the client and have it globally accessible in your application (verify authorization- and tokenEndpoint urls with [Autodesks documentation](https://aps.autodesk.com/en/docs/oauth/v2/reference)):
+```ts
+const client = createAPSAuthClient({
+    clientId: PUBLIC_AEC_APP_ID,
+    authorizationEndpoint: `$https://developer.api.autodesk.com/authentication/v2/authorize`,
+    tokenEndpoint: `https://developer.api.autodesk.com/authentication/v2/token`,
+    scope: ["data:read"]
+})
 ```
 
-Everything inside `src/lib` is part of your library, everything inside `src/routes` can be used as a showcase or preview app.
-
-## Building
-
-To build your library:
-
-```bash
-npm run package
+Redirect the user to Autodesks authorization page (create a callback directory for handling the callback and for the authorization page to redirect you back to):
+```ts
+const redirect_uri = `${window.location.origin}/auth/autodesk/callback`
+await client.loginWithRedirect({ redirect_uri })
 ```
 
-To create a production version of your showcase app:
+Handle the redirect from the authorization page:
+```ts
+// https://example.com/auth/autodesk/callback
+const { origin, pathname } = $page.url
+const redirect_uri = `${origin}${pathname}`
 
-```bash
-npm run build
+try {
+    await client.handleRedirectCallback({ redirect_uri })
+} catch(e) {
+    // Handle error
+}
+
+goto("/") // (Sveltekit function, sends user back to main page.)
 ```
 
-You can preview the production build with `npm run preview`.
-
-> To deploy your app, you may need to install an [adapter](https://kit.svelte.dev/docs/adapters) for your target environment.
-
-## Publishing
-
-Go into the `package.json` and give your package the desired name through the `"name"` option. Also consider adding a `"license"` field and point it to a `LICENSE` file which you can create from a template (one popular option is the [MIT license](https://opensource.org/license/mit/)).
-
-To publish your library to [npm](https://www.npmjs.com):
-
-```bash
-npm publish
+If the access token expires or becomes invalid, refresh the access token:
+```ts
+try {
+    await client.refreshAccessToken();
+} catch(e) {
+    // Handle error
+}
 ```
