@@ -4,12 +4,12 @@
  
     const { children } = $props();
 
-    const AEC_SERVER_URL = "https://developer.api.autodesk.com"
+    const AEC_AUTH_SERVER_URL = "https://developer.api.autodesk.com/authentication/v2"
 
     const client = createAPSAuthClient({
         clientId: PUBLIC_AEC_APP_ID,
-        authorizationEndpoint: `${AEC_SERVER_URL}/authentication/v2/authorize`,
-        tokenEndpoint: `${AEC_SERVER_URL}/authentication/v2/token`,
+        authorizationEndpoint: `${AEC_AUTH_SERVER_URL}/authorize`,
+        tokenEndpoint: `${AEC_AUTH_SERVER_URL}/token`,
         scope: ["data:read"]
     })
 

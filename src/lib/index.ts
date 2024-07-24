@@ -1,8 +1,8 @@
 export { 
     createAPSAuthClient,
     type APSAuthClient,
-    type CreateAPSAuthClientOptionsType, 
-    type LoginWithRedirectOptionType,
-    type HandleRedirectCallbackOptionsType,
-    type LogoutOptionsType
+    type CreateAPSAuthClientOptions, 
+    type LoginWithRedirectOption,
+    type HandleRedirectCallbackOptions,
+    type LogoutOptions
 } from "./client"

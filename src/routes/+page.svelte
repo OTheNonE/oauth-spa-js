@@ -1,24 +1,26 @@
 <script lang="ts">
     import { getContextAPSAuthClient } from "$lib/client";
+    import { PUBLIC_AEC_APP_ID } from '$env/static/public';
 
     const client = getContextAPSAuthClient()
 
-    let access_token = $state<string|null>(client.getTokens().access_token);
-    let refresh_token = $state<string|null>(client.getTokens().refresh_token);
+    let access_token = $state<string|null>(null);
+    let refresh_token = $state<string|null>(null);
     let view_access_token = $state<boolean>(false)
     let view_refresh_token = $state<boolean>(false)
     let has_access_token = $derived(typeof access_token == "string")
 
-    client.isAuthorized()
+    client.getAccessToken().then(token => access_token = token)
 
     async function login() {
         const redirect_uri = `${window.location.origin}/auth/autodesk/callback`
         await client.loginWithRedirect({ redirect_uri })
     }
 
-    function logout() {
+    async function logout() {
         client.logout();
-        ({ access_token, refresh_token } = client.getTokens())
+        access_token = null;
+        refresh_token = null
     }
 
     async function refreshAccessToken() {
@@ -28,7 +30,8 @@
             console.log(e)
         }
 
-        ({ access_token, refresh_token } = client.getTokens())
+        access_token = await client.getAccessToken();
+        refresh_token = localStorage.getItem(`${PUBLIC_AEC_APP_ID}.APSRefreshToken`)
     }
 
 </script>
