@@ -1,4 +1,4 @@
 
-export function inBrowser() {
-    return typeof window != undefined
+export function now_sec() {
+    return Math.round(Date.now() / 1000)
 }

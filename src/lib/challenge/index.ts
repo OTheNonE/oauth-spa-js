@@ -18,9 +18,9 @@ async function sha256(buffer: ArrayBuffer) {
     return hash;
 }
 
-export async function generateCodeChallenge(codeVerifier: string): Promise<string> {
+export async function generateCodeChallenge(code_verifier: string): Promise<string> {
     const encoder = new TextEncoder()
-    const data = encoder.encode(codeVerifier)
+    const data = encoder.encode(code_verifier)
     const hash = await sha256(data)
     return base64URLEncode(hash)
 }
