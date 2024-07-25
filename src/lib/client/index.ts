@@ -11,14 +11,114 @@ export function getContextAPSAuthClient(): ReturnType<typeof createAPSAuthClient
     return getContext(client_context_key)
 }
 
+/** 
+ * Creates an APS Authentication Client.
+ * 
+ * Example:
+ * ```ts
+ * const AEC_AUTH_SERVER_URL = "https://developer.api.autodesk.com/authentication/v2"
+ * 
+ * const client: APSAuthClient = createAPSAuthClient({
+ *     clientId: PUBLIC_AEC_APP_ID,
+ *     authorizationEndpoint: `${AEC_AUTH_SERVER_URL}/authorize`,
+ *     tokenEndpoint: `${AEC_AUTH_SERVER_URL}/token`,
+ *     scope: ["data:read"]
+ * })
+ * ```
+ */
+export function createAPSAuthClient(options: CreateAPSAuthClientOptions): APSAuthClient {
+    return new APSAuthClient(options)
+}
+
+/**
+ * @param options Options object.
+ */
+export type CreateAPSAuthClientOptions = {
+    /**
+     * The Client ID of the application used.
+     */
+    client_id: string,
+    
+    /**
+     * The autorization endpoint for authorizing the user (usually https://developer.api.autodesk.com/authentication/v2/authorize).
+     */
+    authorization_endpoint: string,
+
+    /**
+     * The token endpoint for optaining an access token (usually https://developer.api.autodesk.com/authentication/v2/token).
+     */
+    token_endpoint: string,
+    
+    /**
+     * The scope privilegies to give the user. (e.g. `"data:read"`)
+     */
+    scope: string[],
+}
+
 /**
  * The APS Authentication Client.
  */
-export interface APSAuthClient {
+export class APSAuthClient {
     
     /**
+     * The Client ID of the application used.
+     */
+    readonly client_id: string
+
+    /**
+     * The scope privilegies to give the user.
+     */
+    readonly scope: string[]
+
+    /**
+     * The autorization endpoint for authorizing the user.
+     */
+    readonly authorization_endpoint: string
+
+    /**
+     * The token endpoint for optaining an access token.
+     */
+    readonly token_endpoint: string
+
+    /**
+     * The key for retrieving the access token from local storage.
+     */
+    readonly ACCESS_TOKEN_KEY: string
+
+    /**
+     * The key for retrieving the refresh token from local storage.
+     */
+    readonly REFRESH_TOKEN_KEY: string
+
+    /**
+     * The key for retrieving the code verifier from local storage.
+     */
+    readonly CODE_VERIFIER_KEY: string
+
+    /**
+     * The key for retrieving the token expiration time from local storage.
+     */
+    readonly EXPIRATION_TIME_KEY: string
+    
+    constructor(options: CreateAPSAuthClientOptions) {
+
+        this.client_id = options.client_id
+        this.scope = options.scope
+        this.authorization_endpoint = options.authorization_endpoint
+        this.token_endpoint = options.token_endpoint
+
+        this.ACCESS_TOKEN_KEY = `${options.client_id}.APSAccessToken`
+        this.REFRESH_TOKEN_KEY = `${options.client_id}.APSRefreshToken`
+        this.CODE_VERIFIER_KEY = `${options.client_id}.APSCodeVerifier`
+        this.EXPIRATION_TIME_KEY = `${options.client_id}.APSExpirationTime`
+    }
+
+    
+    /* FLOW METHODS */
+
+    /**
      * Redirects the user to Autodesks authorization page.
-     * @param options Options object for the `client.loginWithRedirect()`-method.
+     * @param options Options.
      * @param [additionalSearchParams] Additional SearchParams to add to the authorization request.
      * 
      * Example:
@@ -29,174 +129,14 @@ export interface APSAuthClient {
      * }
      * ```
      */
-    loginWithRedirect: LoginWithRedirect
-
-    /**
-     * Handles the redirect from client.loginWithRedirect(). This function:
-     * - takes the received code from the url
-     * - the previously stored verification code from local storage
-     * - sends a "POST" request to the authentication server for a token and a refresh token
-     * - and stores the returned token and refresh token in local storage.
-     * 
-     * Example:
-     * ```ts
-     * // https://example.com/auth/autodesk/callback
-     * const client = getContextAPSAuthClient()
-     * const { origin, pathname } = $page.url
-     * const redirect_uri = `${origin}${pathname}`
-     *      
-     * // This method should be catched if it errors.
-     * try {
-     *     await client.handleRedirectCallback({ redirect_uri })
-     * } catch(e) {
-     *     // Handle error
-     * }
-     * 
-     * goto("/")
-     * ```
-     */
-    handleRedirectCallback: HandleRedirectCallback
-
-    /**
-     * Refreshes the access token using the refresh token. If failing, the method clears the access token and refresh token in local storage.
-     * 
-     * Example:
-     * ```ts
-     * try {
-     *     await client.refreshAccessToken();
-     * } catch(e) {
-     *     // Handle error
-     * }
-     * 
-     * ({ access_token, refresh_token } = client.getTokens())
-     * ```
-     */
-    refreshAccessToken: () => Promise<void>,
-
-    /**
-     * Log outs the user by clearing the local storage for tokens and challenges.
-     */
-    logout: Logout
-
-    /**
-     * Checks whether the user is authorized or not.
-     * @returns `true` if authorized; `false` if not authorized.
-     */
-    isAuthorized: () => boolean
-
-
-    /**
-     * Return the access token and refresh token from local storage.
-     * @returns the access token and refresh token from local storage.
-     */
-    getAccessToken: GetAccessToken
-}
-
-/**
- * @param options Options object.
- */
-export type CreateAPSAuthClientOptions = {
-    /**
-     * The Client ID of the application used.
-     */
-    clientId: string,
-    
-    /**
-     * The autorization endpoint for authorizing the user (usually https://developer.api.autodesk.com/authentication/v2/authorize).
-     */
-    authorizationEndpoint: string,
-
-    /**
-     * The token endpoint for optaining an access token (usually https://developer.api.autodesk.com/authentication/v2/token).
-     */
-    tokenEndpoint: string,
-    
-    /**
-     * The scope privilegies to give the user. (e.g. `"data:read"`)
-     */
-    scope: string[],
-}
-
-type LoginWithRedirect = (options: LoginWithRedirectOption, additionalSearchParams?: { [key: string]: string }) => Promise<void>
-
-/**
- * Options object for the `client.loginWithRedirect()`-method.
- */
-export type LoginWithRedirectOption = {
-
-    /**
-     * The url to redirect the user to after authentication (e.g. https://example.com/auth/autodesk/callback). The redirect URI handles the response from the authorization server.
-     */
-    redirect_uri: string,
-
-    /**
-     * For maintaining state after being redirected from authentication.
-     */
-    state?: string,
-
-    /**
-     * Have the user do a cleared session login authorization.
-     */
-    prompt?: "login"
-}
-
-type HandleRedirectCallback = (options: HandleRedirectCallbackOptions) => Promise<void>
-
-/**
- * The option object.
- */
-export type HandleRedirectCallbackOptions = {
-
-    /**
-     * The url which the user is redirected to after authorization (the same value as inserted in 'client.loginWithRedirect()').
-     */
-    redirect_uri: string,
-}
-
-type Logout = (options?: LogoutOptions) => void
-
-/**
- * @param options - Option object.
- */
-export type LogoutOptions = {
-
-    /**
-     * A url to send the user to when logged out.
-     */
-    returnTo?: string,
-}
-
-type GetAccessToken = () => Promise<string | null>
-type GetRefreshToken = () => Promise<string | null>
-
-/** 
- * Creates an APS Authentication Client.
- * @example
- * const client = createAPSAuthClient({
- *     clientId: PUBLIC_AEC_APP_ID,
- *     authorizationEndpoint: `https://developer.api.autodesk.com/authentication/v2/authorize`,
- *     tokenEndpoint: `https://developer.api.autodesk.com/authentication/v2/token`,
- *     scope: ["data:read"]
- * })
- */
-export function createAPSAuthClient(options: CreateAPSAuthClientOptions): APSAuthClient {
-    const client_options = options
-
-    const ACCESS_TOKEN_KEY = `${client_options.clientId}.APSAccessToken`
-    const REFRESH_TOKEN_KEY = `${client_options.clientId}.APSRefreshToken`
-    const CODE_VERIFIER_KEY = `${client_options.clientId}.APSCodeVerifier`
-    const EXPIRATION_TIME_KEY = `${client_options.clientId}.APSExpirationTime`
-
-    /* FLOW METHODS */
-
-    const loginWithRedirect: LoginWithRedirect = async (options, additionalSearchParams) => {
+    async loginWithRedirect(options: LoginWithRedirectOption, additionalSearchParams?: { [key: string]: string }): Promise<void> {
         const { redirect_uri, prompt } = options
-        const { clientId: client_id, scope, authorizationEndpoint } = client_options
+        const { client_id, scope, authorization_endpoint } = this
 
         const code_verifier = generateCodeVerifier()
         const code_challenge = await generateCodeChallenge(code_verifier)
 
-        const url = new URL(authorizationEndpoint)
+        const url = new URL(authorization_endpoint)
 
         const built_in_params = { 
             client_id, 
@@ -225,18 +165,43 @@ export function createAPSAuthClient(options: CreateAPSAuthClientOptions): APSAut
         })
 
         // Is it correct that the code verifier is supposed to be the code challenge?
-        setCodeVerifier(code_challenge)
+        this.setCodeVerifier(code_challenge)
 
         window.location.href = url.toString()
     }
 
-    const handleRedirectCallback: HandleRedirectCallback = async (options) => {
+    /**
+     * Handles the redirect from client.loginWithRedirect(). This function:
+     * - takes the received code from the url
+     * - the previously stored verification code from local storage
+     * - sends a "POST" request to the authentication server for an access token and a refresh token
+     * - and stores the returned access token and refresh token in local storage.
+     * @param options Options.
+     * 
+     * Example:
+     * ```ts
+     * // https://example.com/auth/autodesk/callback
+     * const client = getContextAPSAuthClient()
+     * const { origin, pathname } = $page.url
+     * const redirect_uri = `${origin}${pathname}`
+     *      
+     * // This method should be catched if it errors.
+     * try {
+     *     await client.handleRedirectCallback({ redirect_uri })
+     * } catch(e) {
+     *     // Handle error
+     * }
+     * 
+     * goto("/")
+     * ```
+     */
+    async handleRedirectCallback(options: HandleRedirectCallbackOptions): Promise<void> {
         const { redirect_uri } = options
-        const { clientId: client_id, tokenEndpoint } = client_options
+        const { client_id, token_endpoint } = this
 
-        const code = getCodeFromSearchParams()
-        const code_verifier = getCodeVerifier()
-        clearCodeVerifier()
+        const code = this.getCodeFromSearchParams()
+        const code_verifier = this.getCodeVerifier()
+        this.clearCodeVerifier()
 
         if (!code) throw new Error("No code was found from the callback url.")
 
@@ -254,7 +219,7 @@ export function createAPSAuthClient(options: CreateAPSAuthClientOptions): APSAut
             }).toString()
         }
 
-        const result = await fetch(tokenEndpoint, init)
+        const result = await fetch(token_endpoint, init)
         const data = await result.json()
 
         if (result.status != 200) throw new Error(`${data.error} (${result.status}): ${data.error_description}`)
@@ -273,16 +238,30 @@ export function createAPSAuthClient(options: CreateAPSAuthClientOptions): APSAut
             throw new Error(`'expires_in' does not exists within the returned data.`)
         }
 
-        setTokens({ access_token, refresh_token, expires_in })
+        this.setTokens({ access_token, refresh_token, expires_in })
     }
 
-    const refreshAccessToken = async () => {
-        const { clientId: client_id, tokenEndpoint, scope } = client_options
+    /**
+     * Refreshes the access token using the refresh token. If failing, the method removes the access token and the refresh token from local storage.
+     * 
+     * Example:
+     * ```ts
+     * try {
+     *     await client.refreshAccessToken();
+     * } catch(e) {
+     *     // Handle error
+     * }
+     * 
+     * const access_token = await client.getAccessToken()
+     * ```
+     */
+    async refreshAccessToken() {
+        const { client_id, token_endpoint, scope } = this
 
-        const refresh_token = await getRefreshToken()
+        const refresh_token = this.getRefreshToken()
 
         if (!refresh_token) {
-            clearTokens()
+            this.clearTokens()
             throw new Error("No refresh token was stored in local storage.")
         }
 
@@ -297,11 +276,11 @@ export function createAPSAuthClient(options: CreateAPSAuthClientOptions): APSAut
             }).toString()
         }
 
-        const result = await fetch(tokenEndpoint, init)
+        const result = await fetch(token_endpoint, init)
         const data = await result.json()
 
         if (result.status != 200) {
-            clearTokens()
+            this.clearTokens()
             throw new Error(`${data.error} (${result.status}): ${data.error_description}`)
         }
         
@@ -309,39 +288,49 @@ export function createAPSAuthClient(options: CreateAPSAuthClientOptions): APSAut
             const { access_token, refresh_token, expires_in } = data
 
             if (typeof access_token != "string") {
-                clearTokens()
+                this.clearTokens()
                 throw new Error(`'access_token' does not exists within the returned data.`)
             }
 
             if (typeof refresh_token != "string") {
-                clearTokens()
+                this.clearTokens()
                 throw new Error(`'refresh_token' does not exists within the returned data.`)
             }
 
             if (typeof expires_in != "number") {
-                clearTokens()
+                this.clearTokens()
                 throw new Error(`'expires_in' does not exists within the returned data.`)
             }
 
-            setTokens({ access_token, refresh_token, expires_in })
+            this.setTokens({ access_token, refresh_token, expires_in })
         }
     }
 
-    const logout: Logout = (options) => {
-        clearTokens()
-        clearCodeVerifier()
+    /**
+     * Log outs the user by clearing the local storage for tokens and challenges.
+     * @param options Options.
+     */
+    logout(options: LogoutOptions = { return_to: undefined }): void {
+        this.clearTokens()
+        this.clearCodeVerifier()
 
-        const returnTo = options?.returnTo;
-        if (returnTo) window.location.href = returnTo
+        const { return_to } = options;
+        if (return_to) window.location.href = return_to
     }
 
-    const isAuthorized = () => {
+    /**
+     * Checks whether the user is authorized or not.
+     * @returns `true` if authorized; `false` if not authorized.
+     */
+    isAuthorized() {
+        const { ACCESS_TOKEN_KEY } = this
         return localStorage.getItem(ACCESS_TOKEN_KEY) ? true : false
     }
 
     /* STATE HANDLING METHODS */
 
-    const setTokens = (params: { access_token: string, refresh_token: string, expires_in: number }) => {
+    private setTokens(params: { access_token: string, refresh_token: string, expires_in: number }): void {
+        const { ACCESS_TOKEN_KEY, REFRESH_TOKEN_KEY, EXPIRATION_TIME_KEY } = this
         const { access_token, refresh_token, expires_in } = params
 
         const expiration_time = Date.now() + expires_in * 1000
@@ -351,21 +340,34 @@ export function createAPSAuthClient(options: CreateAPSAuthClientOptions): APSAut
         if (expiration_time) localStorage.setItem(EXPIRATION_TIME_KEY, expiration_time.toString())
     }
 
-    const clearTokens = () => {
+    private clearTokens() {
+        const { ACCESS_TOKEN_KEY, REFRESH_TOKEN_KEY, EXPIRATION_TIME_KEY } = this
+        
         localStorage.removeItem(ACCESS_TOKEN_KEY);
         localStorage.removeItem(REFRESH_TOKEN_KEY);
         localStorage.removeItem(EXPIRATION_TIME_KEY);
     }
 
-    const getAccessToken: GetAccessToken = async () => {
+    /**
+     * Return the access token from local storage. If `null` is returned, the client is not authenticated.
+     * 
+     * If the token is expired, the method will try to refresh the access token before returning: 
+     * - If succeeds:   A new access token will be returned.
+     * - If fails:      The method will throw an error, and all tokens and code verifiers will be removed from local storage.
+     */
+    public async getAccessToken(options: GetAccessTokenOptions = { refresh_if_expired: true }): Promise<string | null> {
+        const { ACCESS_TOKEN_KEY, EXPIRATION_TIME_KEY } = this
+        const { refresh_if_expired } = options
 
         if (!localStorage.getItem(ACCESS_TOKEN_KEY)) return null
 
-        const expiration_time = Number(localStorage.getItem(EXPIRATION_TIME_KEY));
-        const current_time = Date.now()
+        if (refresh_if_expired) {
+            const expiration_time = Number(localStorage.getItem(EXPIRATION_TIME_KEY));
+            const current_time = Date.now()
 
-        if (current_time > expiration_time) {
-            await refreshAccessToken()
+            if (current_time > expiration_time) {
+                await this.refreshAccessToken()
+            }
         }
 
         const access_token = localStorage.getItem(ACCESS_TOKEN_KEY);
@@ -373,35 +375,88 @@ export function createAPSAuthClient(options: CreateAPSAuthClientOptions): APSAut
         return access_token
     }
 
-    const getRefreshToken: GetRefreshToken = async () => {
+    private getRefreshToken(): string | null {
+        const { REFRESH_TOKEN_KEY } = this
+
         return localStorage.getItem(REFRESH_TOKEN_KEY);
     }
 
-    function setCodeVerifier(code_verifier: string) {
+    private setCodeVerifier(code_verifier: string) {
+        const { CODE_VERIFIER_KEY } = this
+
         localStorage.setItem(CODE_VERIFIER_KEY, code_verifier)
     }
 
-    function clearCodeVerifier() {
+    private clearCodeVerifier() {
+        const { CODE_VERIFIER_KEY } = this
+
         localStorage.removeItem(CODE_VERIFIER_KEY);
     }
 
-    function getCodeVerifier() {
+    private getCodeVerifier() {
+        const { CODE_VERIFIER_KEY } = this
+
         return localStorage.getItem(CODE_VERIFIER_KEY)
     }
 
-    function getCodeFromSearchParams() {
+    private getCodeFromSearchParams() {
         const params = new URLSearchParams(window.location.search)
         const code = params.get("code")
         return code
     }
-
-    return {
-        loginWithRedirect,
-        handleRedirectCallback,
-        refreshAccessToken,
-        isAuthorized,
-        logout,
-        getAccessToken,
-    }
 }
 
+/**
+ * Options for the `client.loginWithRedirect()` method.
+ */
+export type LoginWithRedirectOption = {
+
+    /**
+     * The url to redirect the user to after authentication (e.g. https://example.com/auth/autodesk/callback). The redirect URI handles the response from the authorization server.
+     */
+    redirect_uri: string,
+
+    /**
+     * For maintaining state after being redirected from authentication.
+     */
+    state?: string,
+
+    /**
+     * Have the user do a cleared session login authorization.
+     */
+    prompt?: "login"
+}
+
+/**
+ * Options for the `client.handleRedirectCallback()` method.
+ */
+export type HandleRedirectCallbackOptions = {
+
+    /**
+     * The url which the user is redirected to after authorization (the same value as inserted in 'client.loginWithRedirect()').
+     */
+    redirect_uri: string,
+}
+
+/**
+ * Options for the `client.logout()` method.
+ */
+export type LogoutOptions = {
+
+    /**
+     * A url to send the user to after logging out.
+     */
+    return_to?: string,
+}
+
+/**
+ * Options for the `client.getAccessToken()` method.
+ */
+export type GetAccessTokenOptions = {
+
+    /**
+     * Whether the method should refresh the access token automatically if expired.
+     * @warning If disabled, you will likely make requests with an outdated access token, and therefore receive `401 Unauthorized` responses from your requests.
+     */
+    refresh_if_expired: boolean,
+}

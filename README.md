@@ -14,17 +14,17 @@ npm install aps-spa-auth-js
 ```
 
 ### Integrate authentication into your application
-Create the client and have it globally accessible in your application (verify authorization- and tokenEndpoint urls with [Autodesks documentation](https://aps.autodesk.com/en/docs/oauth/v2/reference)):
+Create the client and have it globally accessible in your application (verify authorization- and token endpoint urls with [Autodesks documentation](https://aps.autodesk.com/en/docs/oauth/v2/reference)):
 ```ts
 const client = createAPSAuthClient({
-    clientId: PUBLIC_AEC_APP_ID,
-    authorizationEndpoint: `$https://developer.api.autodesk.com/authentication/v2/authorize`,
-    tokenEndpoint: `https://developer.api.autodesk.com/authentication/v2/token`,
+    client_id: PUBLIC_AEC_APP_ID,
+    authorization_endpoint: `https://developer.api.autodesk.com/authentication/v2/authorize`,
+    token_endpoint: `https://developer.api.autodesk.com/authentication/v2/token`,
     scope: ["data:read"]
 })
 ```
 
-Redirect the user to Autodesks authorization page (create a callback directory for handling the callback and for the authorization page to redirect you back to):
+Redirect the user to Autodesks authorization page (create a callback directory for handling the callback which the authorization page will redirect you back to):
 ```ts
 const redirect_uri = `${window.location.origin}/auth/autodesk/callback`
 await client.loginWithRedirect({ redirect_uri })
@@ -33,7 +33,7 @@ await client.loginWithRedirect({ redirect_uri })
 Handle the redirect from the authorization page:
 ```ts
 // https://example.com/auth/autodesk/callback
-const { origin, pathname } = $page.url // SvelteKit, holds information about the current url.
+const { origin, pathname } = window.location
 const redirect_uri = `${origin}${pathname}`
 
 try {
@@ -42,15 +42,15 @@ try {
     // Handle error
 }
 
-goto("/") // (SvelteKit, sends user back to main page.)
+window.location.href = "/"
 ```
 
-If the access token expires or becomes invalid, refresh the access token:
+And get the access token from the client (the token is automatically refreshed by the method if expired):
 ```ts
 try {
-    await client.refreshAccessToken();
+    await client.getAccessToken()
 } catch(e) {
-    // Handle error
+    // Handle refresh access token error
 }
 ```
 

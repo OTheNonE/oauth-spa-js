@@ -1,6 +1,5 @@
 <script lang="ts">
     import { getContextAPSAuthClient } from "$lib/client";
-    import { PUBLIC_AEC_APP_ID } from '$env/static/public';
 
     const client = getContextAPSAuthClient()
 
@@ -11,6 +10,7 @@
     let has_access_token = $derived(typeof access_token == "string")
 
     client.getAccessToken().then(token => access_token = token)
+    refresh_token = localStorage.getItem(client.REFRESH_TOKEN_KEY)
 
     async function login() {
         const redirect_uri = `${window.location.origin}/auth/autodesk/callback`
@@ -31,7 +31,7 @@
         }
 
         access_token = await client.getAccessToken();
-        refresh_token = localStorage.getItem(`${PUBLIC_AEC_APP_ID}.APSRefreshToken`)
+        refresh_token = localStorage.getItem(client.REFRESH_TOKEN_KEY)
     }
 
 </script>
