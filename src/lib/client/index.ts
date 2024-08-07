@@ -284,7 +284,7 @@ export class APSAuthClient {
             throw new Error(`${data.error} (${result.status}): ${data.error_description}`)
         }
         
-        { // Scoping for sake of name variable convention preservation.
+        { // Scoping for sake of preservation of variable name convention.
             const { access_token, refresh_token, expires_in } = data
 
             if (typeof access_token != "string") {
@@ -456,7 +456,7 @@ export type GetAccessTokenOptions = {
 
     /**
      * Whether the method should refresh the access token automatically if expired.
-     * @warning If disabled, you will likely make requests with an outdated access token, and therefore receive `401 Unauthorized` responses from your requests.
+     * @warning If disabled, you will eventually make requests with an outdated access token, and therefore receive `401 Unauthorized` responses from your requests.
      */
     refresh_if_expired: boolean,
 }
