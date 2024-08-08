@@ -1,7 +1,8 @@
 <script lang="ts">
     import { PUBLIC_AEC_APP_ID } from '$env/static/public';
     import type { APSAuthClient } from '$lib'
-    import { createAPSAuthClient, setContextAPSAuthClient } from '$lib/client';
+    import { createAPSAuthClient } from '$lib/client';
+    import { setContextAPSAuthClient } from '$lib/context'
  
     const { children } = $props();
 

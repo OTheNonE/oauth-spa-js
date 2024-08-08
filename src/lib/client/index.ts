@@ -1,15 +1,4 @@
-import { getContext, setContext } from "svelte"
 import { generateCodeChallenge, generateCodeVerifier } from "../challenge"
-
-const client_context_key = Symbol('auth-client-key')
-
-export function setContextAPSAuthClient(client: APSAuthClient) {
-    setContext(client_context_key, client)
-}
-
-export function getContextAPSAuthClient(): ReturnType<typeof createAPSAuthClient> {
-    return getContext(client_context_key)
-}
 
 /** 
  * Creates an APS Authentication Client.
