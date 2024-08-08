@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { getContextAPSAuthClient } from "$lib/client";
+    import { getContextAPSAuthClient } from "$lib/context";
     import { page } from "$app/stores";
     import { goto } from "$app/navigation"
     

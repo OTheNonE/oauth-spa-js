@@ -1,7 +1,6 @@
 <script lang="ts">
     import { PUBLIC_AEC_APP_ID } from '$env/static/public';
-    import type { APSAuthClient } from '$lib'
-    import { createAPSAuthClient } from '$lib/client';
+    import { type APSAuthClient, createAPSAuthClient } from '$lib'
     import { setContextAPSAuthClient } from '$lib/context'
  
     const { children } = $props();
@@ -17,7 +16,7 @@
         scope: ["data:read"]
     })
 
-    client.subscribe(() => is_authorized = client.isAuthorized())
+    client.subscribe(access_token => is_authorized = client.isAuthorized())
 
     setContextAPSAuthClient(client)
 

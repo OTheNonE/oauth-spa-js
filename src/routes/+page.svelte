@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { getContextAPSAuthClient } from "$lib/client";
+    import { getContextAPSAuthClient } from "$lib/context";
 
     const client = getContextAPSAuthClient()
 
@@ -8,7 +8,8 @@
     let view_access_token = $state<boolean>(false)
     let view_refresh_token = $state<boolean>(false)
 
-    client.getAccessToken().then(token => access_token = token)
+    client.subscribe(token => access_token = token)
+    
     refresh_token = localStorage.getItem(client.REFRESH_TOKEN_KEY)
 
     async function refreshAccessToken() {

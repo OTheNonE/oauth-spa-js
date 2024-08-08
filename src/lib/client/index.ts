@@ -89,7 +89,7 @@ export class APSAuthClient {
      */
     readonly EXPIRATION_TIME_KEY: string
 
-    private state_changed_callbacks: Set<() => void>
+    private state_changed_callbacks: Set<(access_token: string | null) => void>
     
     constructor(options: CreateAPSAuthClientOptions) {
 
@@ -354,18 +354,13 @@ export class APSAuthClient {
      * - If fails:      The method will throw an error, and all tokens and code verifiers will be removed from local storage.
      */
     public async getAccessToken(options: GetAccessTokenOptions = { refresh_if_expired: true }): Promise<string | null> {
-        const { ACCESS_TOKEN_KEY, EXPIRATION_TIME_KEY } = this
+        const { ACCESS_TOKEN_KEY } = this
         const { refresh_if_expired } = options
 
         if (!localStorage.getItem(ACCESS_TOKEN_KEY)) return null
 
-        if (refresh_if_expired) {
-            const expiration_time = Number(localStorage.getItem(EXPIRATION_TIME_KEY));
-            const current_time = Date.now()
-
-            if (current_time > expiration_time) {
-                await this.refreshAccessToken()
-            }
+        if (refresh_if_expired && this.tokenIsExpired()) {
+            await this.refreshAccessToken()
         }
 
         const access_token = localStorage.getItem(ACCESS_TOKEN_KEY);
@@ -403,16 +398,33 @@ export class APSAuthClient {
         return code
     }
 
+    /**
+     * Determines whether the `access_token` is expired or still valid.
+     * @returns `true` if expired; `false` if still valid.
+     */
+    tokenIsExpired() {
+        const { EXPIRATION_TIME_KEY } = this
+        
+        const expiration_time = Number(localStorage.getItem(EXPIRATION_TIME_KEY));
+        const current_time = Date.now()
+
+        return current_time > expiration_time
+    }
+
     /* SUBSCRIBE METHODS */
         
     /**
      * Subscribe to the authentication status of the client. Specifically, the given callback function is called when the `access_token` is either added- or removed from local storage.
      * @returns an unsubscribe function.
      */
-    subscribe(cb: () => void): UnsubscribeToAuthState {
+    subscribe(cb: (access_token: string | null) => void): UnsubscribeToAuthState {
+        const { ACCESS_TOKEN_KEY } = this
+        
+        const access_token = localStorage.getItem(ACCESS_TOKEN_KEY)
+
         this.state_changed_callbacks.add(cb)
 
-        cb() // Call function on initialization.
+        cb(access_token) // Call function on initialization.
 
         return () => {
             this.state_changed_callbacks.delete(cb)
@@ -420,7 +432,11 @@ export class APSAuthClient {
     }
 
     private notifyStateChanged() {
-        this.state_changed_callbacks.forEach(cb => cb())
+        const { ACCESS_TOKEN_KEY } = this
+        
+        const access_token = localStorage.getItem(ACCESS_TOKEN_KEY)
+
+        this.state_changed_callbacks.forEach(cb => cb(access_token))
     }
 }
 

@@ -24,17 +24,21 @@ const client = createAPSAuthClient({
 })
 ```
 
-Redirect the user to Autodesks authorization page (create a callback directory for handling the callback which the authorization page will redirect you back to):
+Redirect the user to Autodesks authorization page:
 ```ts
 const redirect_uri = `${window.location.origin}/auth/autodesk/callback`
-await client.loginWithRedirect({ redirect_uri })
+const state = window.location.href
+await client.loginWithRedirect({ redirect_uri, state })
 ```
 
-Handle the redirect from the authorization page:
+Create a callback directory which will handle the callback from the authorization page:
 ```ts
 // https://example.com/auth/autodesk/callback
 const { origin, pathname } = window.location
 const redirect_uri = `${origin}${pathname}`
+
+const searchParams = new URLSearchParams(window.location.search);
+const state = searchParams.get("state")
 
 try {
     await client.handleRedirectCallback({ redirect_uri })
@@ -42,7 +46,7 @@ try {
     // Handle error
 }
 
-window.location.href = "/"
+window.location.href = state ?? "/"
 ```
 
 And get the access token from the client (the token is automatically refreshed by the method if expired):
@@ -52,6 +56,11 @@ try {
 } catch(e) {
     // Handle refresh access token error
 }
+```
+
+Subscribe to the authorization state of the client:
+```ts
+client.subscribe(() => is_authorized = client.isAuthorized())
 ```
 
 Check out the [aps-spa-auth-js](https://github.com/OTheNonE/aps-spa-auth-js) Github repository for a simple example developed in SvelteKit.
