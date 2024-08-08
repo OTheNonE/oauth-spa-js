@@ -99,6 +99,8 @@ export class APSAuthClient {
      * The key for retrieving the token expiration time from local storage.
      */
     readonly EXPIRATION_TIME_KEY: string
+
+    private state_changed_callbacks: Set<() => void>
     
     constructor(options: CreateAPSAuthClientOptions) {
 
@@ -111,6 +113,8 @@ export class APSAuthClient {
         this.REFRESH_TOKEN_KEY = `${options.client_id}.APSRefreshToken`
         this.CODE_VERIFIER_KEY = `${options.client_id}.APSCodeVerifier`
         this.EXPIRATION_TIME_KEY = `${options.client_id}.APSExpirationTime`
+
+        this.state_changed_callbacks = new Set()
     }
 
     
@@ -130,7 +134,7 @@ export class APSAuthClient {
      * ```
      */
     async loginWithRedirect(options: LoginWithRedirectOption, additionalSearchParams?: { [key: string]: string }): Promise<void> {
-        const { redirect_uri, prompt } = options
+        const { redirect_uri, prompt, state } = options
         const { client_id, scope, authorization_endpoint } = this
 
         const code_verifier = generateCodeVerifier()
@@ -144,6 +148,7 @@ export class APSAuthClient {
             code_challenge,
             scope,
             prompt,
+            state,
             response_type: "code",
             nonce: "12321321",
             method: "S256",
@@ -338,6 +343,8 @@ export class APSAuthClient {
         if (access_token) localStorage.setItem(ACCESS_TOKEN_KEY, access_token)
         if (refresh_token) localStorage.setItem(REFRESH_TOKEN_KEY, refresh_token)
         if (expiration_time) localStorage.setItem(EXPIRATION_TIME_KEY, expiration_time.toString())
+
+        this.notifyStateChanged()
     }
 
     private clearTokens() {
@@ -346,6 +353,8 @@ export class APSAuthClient {
         localStorage.removeItem(ACCESS_TOKEN_KEY);
         localStorage.removeItem(REFRESH_TOKEN_KEY);
         localStorage.removeItem(EXPIRATION_TIME_KEY);
+
+        this.notifyStateChanged()
     }
 
     /**
@@ -404,6 +413,26 @@ export class APSAuthClient {
         const code = params.get("code")
         return code
     }
+
+    /* SUBSCRIBE METHODS */
+        
+    /**
+     * Subscribe to the authentication status of the client. Specifically, the given callback function is called when the `access_token` is either added- or removed from local storage.
+     * @returns an unsubscribe function.
+     */
+    subscribe(cb: () => void): UnsubscribeToAuthState {
+        this.state_changed_callbacks.add(cb)
+
+        cb() // Call function on initialization.
+
+        return () => {
+            this.state_changed_callbacks.delete(cb)
+        }
+    }
+
+    private notifyStateChanged() {
+        this.state_changed_callbacks.forEach(cb => cb())
+    }
 }
 
 /**
@@ -460,3 +489,9 @@ export type GetAccessTokenOptions = {
      */
     refresh_if_expired: boolean,
 }
+
+// This JSDoc does not appear when hovering...
+/**
+ * Unsubscribe to the authentication status of the client.
+ */
+export type UnsubscribeToAuthState = () => void

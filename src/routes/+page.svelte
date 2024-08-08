@@ -7,21 +7,9 @@
     let refresh_token = $state<string|null>(null);
     let view_access_token = $state<boolean>(false)
     let view_refresh_token = $state<boolean>(false)
-    let has_access_token = $derived(typeof access_token == "string")
 
     client.getAccessToken().then(token => access_token = token)
     refresh_token = localStorage.getItem(client.REFRESH_TOKEN_KEY)
-
-    async function login() {
-        const redirect_uri = `${window.location.origin}/auth/autodesk/callback`
-        await client.loginWithRedirect({ redirect_uri })
-    }
-
-    async function logout() {
-        client.logout();
-        access_token = null;
-        refresh_token = null
-    }
 
     async function refreshAccessToken() {
         try {
@@ -38,7 +26,7 @@
 
 
 <main>
-    <h1> Autodesk APS Authentication: 3-Legged Token with Authorization Code Grant (PKCE) for Public Clients </h1>
+    <h1> Home </h1>
 
     <div>
         {#if access_token}
@@ -102,11 +90,6 @@
                 <p> You are not authenticated. </p>
             </div>
         {/if}
-    </div>
-    
-    <div>
-        <button disabled={has_access_token} onclick={login}> Login </button>
-        <button disabled={!has_access_token} onclick={logout}> Logout </button>
     </div>
     
 </main>

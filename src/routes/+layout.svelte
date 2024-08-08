@@ -5,6 +5,8 @@
  
     const { children } = $props();
 
+    let is_authorized = $state<boolean>(false)
+
     const AEC_AUTH_SERVER_URL = "https://developer.api.autodesk.com/authentication/v2"
 
     const client: APSAuthClient = createAPSAuthClient({
@@ -14,8 +16,63 @@
         scope: ["data:read"]
     })
 
+    client.subscribe(() => is_authorized = client.isAuthorized())
+
     setContextAPSAuthClient(client)
+
+    async function login() {
+        const redirect_uri = `${window.location.origin}/auth/autodesk/callback`
+        const state = window.location.href
+        await client.loginWithRedirect({ redirect_uri, state })
+    }
+
+    async function logout() {
+        is_authorized = false;
+        client.logout();
+    }
+
+    const navigations = [{
+        href: "/",
+        name: "Home"
+    }, {
+        href: "/first",
+        name: "First"
+    }, {
+        href: "/second",
+        name: "Second"
+    }] as const
 
 </script>
 
-{@render children()}
+<div class="top-bar">
+    <div class="navigation-bar">
+        {#each navigations as {href, name}}
+            <a {href}> {name} </a>
+        {/each}
+    </div>
+
+    <div> Autodesk Platform Services | Authentication Client for Single Page Applications </div>
+    
+    <div class="navigation-bar">
+        <button disabled={is_authorized} onclick={login}> Login </button>
+        <button disabled={!is_authorized} onclick={logout}> Logout </button>
+    </div>
+</div>
+
+<div>
+    {@render children()}
+</div>
+
+<style>
+    .top-bar {
+        display: flex;
+        justify-content: space-between;
+        padding: 0.50rem;
+        border-bottom: 0.1rem solid black 
+    }
+
+    .navigation-bar {
+        display: flex;
+        gap: 0.50rem;
+    }
+</style>
