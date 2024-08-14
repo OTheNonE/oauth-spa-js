@@ -344,8 +344,6 @@ export class APSAuthClient {
     async getUserInfo(): Promise<AutodeskUserInformation> {
         const { user_info } = this
 
-        console.log(user_info)
-
         if (user_info) return user_info
         else {
             const result = await this.fetchUserInfo()
