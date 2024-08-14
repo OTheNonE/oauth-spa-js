@@ -4,5 +4,6 @@ export {
     type CreateAPSAuthClientOptions, 
     type LoginWithRedirectOption,
     type HandleRedirectCallbackOptions,
-    type LogoutOptions
+    type LogoutOptions,
+    type AutodeskUserInformation
 } from "./client"

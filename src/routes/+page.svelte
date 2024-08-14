@@ -1,12 +1,14 @@
 <script lang="ts">
+    import { type AutodeskUserInformation } from "$lib";
     import { getContextAPSAuthClient } from "$lib/context";
 
     const client = getContextAPSAuthClient()
 
     let access_token = $state<string|null>(null);
     let refresh_token = $state<string|null>(null);
-    let view_access_token = $state<boolean>(false)
-    let view_refresh_token = $state<boolean>(false)
+    let view_access_token = $state<boolean>(false);
+    let view_refresh_token = $state<boolean>(false);
+    let user_info = $state<AutodeskUserInformation|null>(null);
 
     client.subscribe(token => access_token = token)
     
@@ -23,11 +25,23 @@
         refresh_token = localStorage.getItem(client.REFRESH_TOKEN_KEY)
     }
 
+    async function getUserInformation() {
+        user_info = await client.getUserInfo()
+        console.log(user_info)
+    }
+
 </script>
 
 
 <main>
     <h1> Home </h1>
+
+
+    <div>
+        <button
+            onclick={getUserInformation}
+        > Request User Info </button>
+    </div>
 
     <div>
         {#if access_token}

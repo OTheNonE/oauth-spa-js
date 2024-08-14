@@ -37,6 +37,11 @@ export type CreateAPSAuthClientOptions = {
      * The token endpoint for optaining an access token (usually https://developer.api.autodesk.com/authentication/v2/token).
      */
     token_endpoint: string,
+
+    /**
+     * The user information endpoint where information of the authorized user is fetched (ussually https://api.userprofile.autodesk.com/userinfo).
+     */
+    user_info_endpoint?: string
     
     /**
      * The scope privilegies to give the user. (e.g. `"data:read"`)
@@ -68,6 +73,11 @@ export class APSAuthClient {
      * The token endpoint for optaining an access token.
      */
     readonly token_endpoint: string
+ 
+    /**
+     * The user information endpoint for fetching information of the authorized user. If null, then no endpoint has been supplied.
+     */
+    readonly user_info_endpoint: string | null
 
     /**
      * The key for retrieving the access token from local storage.
@@ -97,6 +107,7 @@ export class APSAuthClient {
         this.scope = options.scope
         this.authorization_endpoint = options.authorization_endpoint
         this.token_endpoint = options.token_endpoint
+        this.user_info_endpoint = options.user_info_endpoint ?? null
 
         this.ACCESS_TOKEN_KEY = `${options.client_id}.APSAccessToken`
         this.REFRESH_TOKEN_KEY = `${options.client_id}.APSRefreshToken`
@@ -201,7 +212,7 @@ export class APSAuthClient {
 
         if (!code_verifier) throw new Error("No code verifier was stored in local storage.")
 
-        const init = {
+        const init: RequestInit = {
             method: "POST",
             headers: { "Content-Type": "application/x-www-form-urlencoded" },
             body: new URLSearchParams({
@@ -259,7 +270,7 @@ export class APSAuthClient {
             throw new Error("No refresh token was stored in local storage.")
         }
 
-        const init = {
+        const init: RequestInit = {
             method: "POST",
             headers: { "Content-Type": "application/x-www-form-urlencoded" },
             body: new URLSearchParams({
@@ -319,6 +330,29 @@ export class APSAuthClient {
     isAuthorized() {
         const { ACCESS_TOKEN_KEY } = this
         return localStorage.getItem(ACCESS_TOKEN_KEY) ? true : false
+    }
+
+    async getUserInfo(): Promise<AutodeskUserInformation> {
+        const user_info_endpoint = "https://api.userprofile.autodesk.com/userinfo"
+
+        const access_token = await this.getAccessToken()
+
+        if (!access_token) throw new Error("No access token was stored in local storage when fetching user information.")
+
+        const init: RequestInit = {
+            method: "GET",
+            headers: { Authorization: access_token },
+        }
+
+        const result = await fetch(user_info_endpoint, init)
+        const data = await result.json()        
+
+        if (result.status != 200) {
+            this.clearTokens()
+            throw new Error(`${data.error} (${result.status}): ${data.error_description}`)
+        }
+
+        return data
     }
 
     /* STATE HANDLING METHODS */
@@ -500,3 +534,99 @@ export type GetAccessTokenOptions = {
  * Unsubscribe to the authentication status of the client.
  */
 export type UnsubscribeToAuthState = () => void
+
+/**
+* Represents a user profile information object.
+*/
+export type AutodeskUserInformation = {
+
+   /** Oxygen id of the user */
+   sub: string;
+   
+   /** Full name of the user */
+   name: string;
+   
+   /** First name of the user */
+   given_name: string;
+   
+   /** Last name of the user */
+   family_name: string;
+   
+   /** Username of the user */
+   preferred_username: string;
+   
+   /** Primary email of the user */
+   email: string;
+   
+   /** Flag that shows if the user's email is verified or not */
+   email_verified: boolean;
+   
+   /** URL for the profile of the user */
+   profile: string;
+   
+   /** Profile image of the user (x120 thumbnail) */
+   picture: string;
+   
+   /** End-User's locale, represented as a BCP47 standard (eg, en-US) */
+   locale: string;
+   
+   /** The second-precision Unix timestamp of last modification on the user profile */
+   updated_at: number;
+   
+   /** Flag is true if two factor authentication is enabled for this profile. */
+   is_2fa_enabled: boolean;
+   
+   /** The country code assigned to the account at creation. */
+   country_code: string;
+   
+   /** Object containing contact address information */
+   address: object;
+   
+   /** The primary phone number of the user profile with country code and extension in the format: "+(countryCode) (phoneNumber) #(Extension)" */
+   phone_number: string;
+   
+   /** Flag to tell whether or not above phone number was verified */
+   phone_number_verified: boolean;
+   
+   /** Flag for the LDAP/SSO Status of the user, true if is ldap user. */
+   ldap_enabled: boolean;
+   
+   /** Domain name for the LDAP user null if non LDAP user */
+   ldap_domain: string;
+   
+   /** The job title selected on the user profile. */
+   job_title: string;
+   
+   /** The industry selected on the user profile. */
+   industry: string;
+   
+   /** The industry code associated on the user profile */
+   industry_code: string;
+   
+   /** The about me text on the user profile */
+   about_me: string;
+   
+   /** The language selected by the user */
+   language: string;
+   
+   /** The company on the user profile */
+   company: string;
+   
+   /** The datetime (UTC) the user was created */
+   created_date: string;
+   
+   /** The last login date (UTC) of the user */
+   last_login_date: string;
+   
+   /** Eidm Identifier. */
+   eidm_guid: string;
+   
+   /** The flag that indicates if user opts in the marketing information. */
+   opt_in: boolean;
+   
+   /** Social provider name and provider identifier when the user is a social user or else empty list. */
+   social_userinfo_list: Array<object>;
+   
+   /** Object with profile image thumbnail urls for each size by key. */
+   thumbnails: object;
+};
