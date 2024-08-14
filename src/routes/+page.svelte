@@ -11,6 +11,8 @@
     let user_info = $state<AutodeskUserInformation|null>(null);
 
     client.subscribe(token => access_token = token)
+
+    client.getUserInfo().then(result => user_info = result)
     
     refresh_token = localStorage.getItem(client.REFRESH_TOKEN_KEY)
 
@@ -25,23 +27,11 @@
         refresh_token = localStorage.getItem(client.REFRESH_TOKEN_KEY)
     }
 
-    async function getUserInformation() {
-        user_info = await client.getUserInfo()
-        console.log(user_info)
-    }
-
 </script>
 
 
 <main>
     <h1> Home </h1>
-
-
-    <div>
-        <button
-            onclick={getUserInformation}
-        > Request User Info </button>
-    </div>
 
     <div>
         {#if access_token}
@@ -100,6 +90,16 @@
             </div>
     
             <br>
+    
+            <div>
+                <pre> 
+                    {JSON.stringify(user_info, undefined, 2)}
+                </pre>
+            </div>
+    
+            <br>
+
+
         {:else}
             <div>
                 <p> You are not authenticated. </p>

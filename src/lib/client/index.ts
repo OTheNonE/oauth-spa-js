@@ -80,6 +80,11 @@ export class APSAuthClient {
     readonly user_info_endpoint: string | null
 
     /**
+     * The user information.
+     */
+    user_info: AutodeskUserInformation | null
+
+    /**
      * The key for retrieving the access token from local storage.
      */
     readonly ACCESS_TOKEN_KEY: string
@@ -108,6 +113,7 @@ export class APSAuthClient {
         this.authorization_endpoint = options.authorization_endpoint
         this.token_endpoint = options.token_endpoint
         this.user_info_endpoint = options.user_info_endpoint ?? null
+        this.user_info = null
 
         this.ACCESS_TOKEN_KEY = `${options.client_id}.APSAccessToken`
         this.REFRESH_TOKEN_KEY = `${options.client_id}.APSRefreshToken`
@@ -332,8 +338,26 @@ export class APSAuthClient {
         return localStorage.getItem(ACCESS_TOKEN_KEY) ? true : false
     }
 
+    /**
+     * Gets information of the authenticated user.
+     */
     async getUserInfo(): Promise<AutodeskUserInformation> {
-        const user_info_endpoint = "https://api.userprofile.autodesk.com/userinfo"
+        const { user_info } = this
+
+        console.log(user_info)
+
+        if (user_info) return user_info
+        else {
+            const result = await this.fetchUserInfo()
+            this.user_info = result
+            return result
+        }
+    }
+
+    async fetchUserInfo(): Promise<AutodeskUserInformation> {
+        const { user_info_endpoint } = this
+
+        if (!user_info_endpoint) throw new Error("No user information endpoint has been supplied to the client.")
 
         const access_token = await this.getAccessToken()
 
@@ -345,7 +369,7 @@ export class APSAuthClient {
         }
 
         const result = await fetch(user_info_endpoint, init)
-        const data = await result.json()        
+        const data = await result.json()
 
         if (result.status != 200) {
             this.clearTokens()

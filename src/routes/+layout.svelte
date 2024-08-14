@@ -13,6 +13,7 @@
         client_id: PUBLIC_AEC_APP_ID,
         authorization_endpoint: `${AEC_AUTH_SERVER_URL}/authorize`,
         token_endpoint: `${AEC_AUTH_SERVER_URL}/token`,
+        user_info_endpoint: "https://api.userprofile.autodesk.com/userinfo",
         scope: ["data:read"]
     })
 
