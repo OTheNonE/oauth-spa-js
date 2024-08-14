@@ -39,7 +39,7 @@ export type CreateAPSAuthClientOptions = {
     token_endpoint: string,
 
     /**
-     * The user information endpoint where information of the authorized user is fetched (ussually https://api.userprofile.autodesk.com/userinfo).
+     * The user information endpoint where information of the authorized user is fetched (usually https://api.userprofile.autodesk.com/userinfo).
      */
     user_info_endpoint?: string
     
@@ -82,7 +82,7 @@ export class APSAuthClient {
     /**
      * The user information.
      */
-    user_info: AutodeskUserInformation | null
+    private user_info: AutodeskUserInformation | null
 
     /**
      * The key for retrieving the access token from local storage.
@@ -339,20 +339,21 @@ export class APSAuthClient {
     }
 
     /**
-     * Gets information of the authenticated user.
+     * Gets information of the authenticated user. If `null` is returned, the client is not authenticated. The user information is cached upon fetching. 
+     * @throws if `user_info_endpoint` is not specified.
      */
-    async getUserInfo(): Promise<AutodeskUserInformation> {
+    async getUserInfo(options: GetUserInfoOptions = { disable_caching: false }): Promise<AutodeskUserInformation|null> {
+        const { disable_caching } = options
         const { user_info } = this
 
-        if (user_info) return user_info
+        if (user_info && !disable_caching) return user_info
         else {
-            const result = await this.fetchUserInfo()
-            this.user_info = result
-            return result
+            this.user_info = await this.fetchUserInfo()
+            return this.user_info
         }
     }
 
-    async fetchUserInfo(): Promise<AutodeskUserInformation> {
+    private async fetchUserInfo(): Promise<AutodeskUserInformation> {
         const { user_info_endpoint } = this
 
         if (!user_info_endpoint) throw new Error("No user information endpoint has been supplied to the client.")
@@ -537,6 +538,17 @@ export type LogoutOptions = {
      * A url to send the user to after logging out.
      */
     return_to?: string,
+}
+
+/**
+ * Options for the `client.getUserInfo()` method
+ */
+export type GetUserInfoOptions = {
+
+    /**
+     * If `true`, the user information is refreshed every time the method is called (defaults to `false`).
+     */
+    disable_caching: boolean
 }
 
 /**
