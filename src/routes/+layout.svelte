@@ -1,11 +1,12 @@
 <script lang="ts">
     import { PUBLIC_AEC_APP_ID } from '$env/static/public';
-    import { type APSAuthClient, createAPSAuthClient } from '$lib'
+    import { type APSAuthClient, type AutodeskUserInformation, createAPSAuthClient } from '$lib'
     import { setContextAPSAuthClient } from '$lib/context'
  
     const { children } = $props();
 
     let is_authorized = $state<boolean>(false)
+    let user_info = $state<AutodeskUserInformation|null>(null);
 
     const AEC_AUTH_SERVER_URL = "https://developer.api.autodesk.com/authentication/v2"
 
@@ -17,7 +18,14 @@
         scope: ["data:read"]
     })
 
-    client.subscribe(access_token => is_authorized = client.isAuthorized())
+    client.subscribe(async access_token => {
+        is_authorized = client.isAuthorized()
+        user_info = await client.getUserInfo()
+    })
+
+    client.getUserInfo().then(result => {
+        console.log(result)
+    }) 
 
     setContextAPSAuthClient(client)
 
@@ -52,9 +60,12 @@
         {/each}
     </div>
 
-    <div> Autodesk Platform Services | Authentication Client for Single Page Applications </div>
+    <div> APS | Authentication Client for Single Page Applications </div>
     
     <div class="navigation-bar">
+        {#if user_info}
+            <div> Hello {user_info.name} </div>
+        {/if}
         <button disabled={is_authorized} onclick={login}> Login </button>
         <button disabled={!is_authorized} onclick={logout}> Logout </button>
     </div>

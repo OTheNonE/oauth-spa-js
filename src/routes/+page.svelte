@@ -10,11 +10,11 @@
     let view_refresh_token = $state<boolean>(false);
     let user_info = $state<AutodeskUserInformation|null>(null);
 
-    client.subscribe(token => access_token = token)
-
-    client.getUserInfo().then(result => user_info = result)
-    
-    refresh_token = localStorage.getItem(client.REFRESH_TOKEN_KEY)
+    client.subscribe(async token => {
+        access_token = token
+        refresh_token = localStorage.getItem(client.REFRESH_TOKEN_KEY)
+        user_info = await client.getUserInfo()
+    })
 
     async function refreshAccessToken() {
         try {
@@ -22,13 +22,9 @@
         } catch(e) {
             console.log(e)
         }
-
-        access_token = await client.getAccessToken();
-        refresh_token = localStorage.getItem(client.REFRESH_TOKEN_KEY)
     }
 
 </script>
-
 
 <main>
     <h1> Home </h1>

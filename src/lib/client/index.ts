@@ -353,14 +353,14 @@ export class APSAuthClient {
         }
     }
 
-    private async fetchUserInfo(): Promise<AutodeskUserInformation> {
+    private async fetchUserInfo(): Promise<AutodeskUserInformation|null> {
         const { user_info_endpoint } = this
 
         if (!user_info_endpoint) throw new Error("No user information endpoint has been supplied to the client.")
 
         const access_token = await this.getAccessToken()
 
-        if (!access_token) throw new Error("No access token was stored in local storage when fetching user information.")
+        if (!access_token) return null
 
         const init: RequestInit = {
             method: "GET",
@@ -399,6 +399,8 @@ export class APSAuthClient {
         localStorage.removeItem(ACCESS_TOKEN_KEY);
         localStorage.removeItem(REFRESH_TOKEN_KEY);
         localStorage.removeItem(EXPIRATION_TIME_KEY);
+
+        this.user_info = null
 
         this.notifyStateChanged()
     }
@@ -471,7 +473,7 @@ export class APSAuthClient {
     /* SUBSCRIBE METHODS */
         
     /**
-     * Subscribe to the authentication status of the client. Specifically, the given callback function is called when the `access_token` is either added- or removed from local storage.
+     * Subscribe to the authentication status of the client. Specifically, the given callback function is called when the `access_token` is either added- or removed from local storage. The subscribtion runs once on initialization.
      * @returns an unsubscribe function.
      */
     subscribe(cb: (access_token: string | null) => void): UnsubscribeToAuthState {
