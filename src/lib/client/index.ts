@@ -54,54 +54,37 @@ export type CreateAPSAuthClientOptions = {
  */
 export class APSAuthClient {
     
-    /**
-     * The Client ID of the application used.
-     */
+    /** The Client ID of the application used. */
     readonly client_id: string
 
-    /**
-     * The scope privilegies to give the user.
-     */
+    /** he scope privilegies to give the user. */
     readonly scope: string[]
 
-    /**
-     * The autorization endpoint for authorizing the user.
-     */
+    /** The autorization endpoint for authorizing the user. */
     readonly authorization_endpoint: string
 
-    /**
-     * The token endpoint for optaining an access token.
-     */
+    /** The token endpoint for optaining an access token. */
     readonly token_endpoint: string
  
-    /**
-     * The user information endpoint for fetching information of the authorized user. If null, then no endpoint has been supplied.
-     */
+    /** The user information endpoint for fetching information of the authorized user. If null, then no endpoint has been supplied. */
     readonly user_info_endpoint: string | null
 
-    /**
-     * The user information.
-     */
+    /** The user information. */
     private user_info: AutodeskUserInformation | null
 
-    /**
-     * The key for retrieving the access token from local storage.
-     */
+    /** Fetching user information. */
+    private fetching_user_info: Promise<AutodeskUserInformation | null> | null
+
+    /** The key for retrieving the access token from local storage. */
     readonly ACCESS_TOKEN_KEY: string
 
-    /**
-     * The key for retrieving the refresh token from local storage.
-     */
+    /** The key for retrieving the refresh token from local storage. */
     readonly REFRESH_TOKEN_KEY: string
 
-    /**
-     * The key for retrieving the code verifier from local storage.
-     */
+    /** The key for retrieving the code verifier from local storage. */
     readonly CODE_VERIFIER_KEY: string
 
-    /**
-     * The key for retrieving the token expiration time from local storage.
-     */
+    /** The key for retrieving the token expiration time from local storage. */
     readonly EXPIRATION_TIME_KEY: string
 
     private state_changed_callbacks: Set<(access_token: string | null) => void>
@@ -114,6 +97,7 @@ export class APSAuthClient {
         this.token_endpoint = options.token_endpoint
         this.user_info_endpoint = options.user_info_endpoint ?? null
         this.user_info = null
+        this.fetching_user_info = null
 
         this.ACCESS_TOKEN_KEY = `${options.client_id}.APSAccessToken`
         this.REFRESH_TOKEN_KEY = `${options.client_id}.APSRefreshToken`
@@ -342,18 +326,24 @@ export class APSAuthClient {
      * Gets information of the authenticated user. If `null` is returned, the client is not authenticated. The user information is cached upon fetching. 
      * @throws if `user_info_endpoint` is not specified.
      */
-    async getUserInfo(options: GetUserInfoOptions = { disable_caching: false }): Promise<AutodeskUserInformation|null> {
-        const { disable_caching } = options
+    async getUserInfo(): Promise<AutodeskUserInformation | null> {
+        if (this.fetching_user_info) await this.fetching_user_info
+        
         const { user_info } = this
-
-        if (user_info && !disable_caching) return user_info
+        
+        if (user_info) return user_info
         else {
-            this.user_info = await this.fetchUserInfo()
+            this.fetching_user_info = this.fetchUserInfo()
+
+            this.user_info = await this.fetching_user_info
+
+            this.fetching_user_info = null
+
             return this.user_info
         }
     }
 
-    private async fetchUserInfo(): Promise<AutodeskUserInformation|null> {
+    private async fetchUserInfo(): Promise<AutodeskUserInformation | null> {
         const { user_info_endpoint } = this
 
         if (!user_info_endpoint) throw new Error("No user information endpoint has been supplied to the client.")
@@ -374,6 +364,8 @@ export class APSAuthClient {
             this.clearTokens()
             throw new Error(`${data.error} (${result.status}): ${data.error_description}`)
         }
+
+        console.log(data)
 
         return data
     }

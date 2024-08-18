@@ -23,10 +23,6 @@
         user_info = await client.getUserInfo()
     })
 
-    client.getUserInfo().then(result => {
-        console.log(result)
-    }) 
-
     setContextAPSAuthClient(client)
 
     async function login() {
