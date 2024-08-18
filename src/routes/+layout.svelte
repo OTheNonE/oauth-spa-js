@@ -31,10 +31,7 @@
         await client.loginWithRedirect({ redirect_uri, state })
     }
 
-    async function logout() {
-        is_authorized = false;
-        client.logout();
-    }
+    const logout = async () => client.logout()
 
     const navigations = [{
         href: "/",

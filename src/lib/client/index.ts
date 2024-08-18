@@ -365,8 +365,6 @@ export class APSAuthClient {
             throw new Error(`${data.error} (${result.status}): ${data.error_description}`)
         }
 
-        console.log(data)
-
         return data
     }
 
@@ -382,6 +380,9 @@ export class APSAuthClient {
         if (refresh_token) localStorage.setItem(REFRESH_TOKEN_KEY, refresh_token)
         if (expiration_time) localStorage.setItem(EXPIRATION_TIME_KEY, expiration_time.toString())
 
+        this.user_info = null
+        this.fetching_user_info = null
+
         this.notifyStateChanged()
     }
 
@@ -393,6 +394,7 @@ export class APSAuthClient {
         localStorage.removeItem(EXPIRATION_TIME_KEY);
 
         this.user_info = null
+        this.fetching_user_info = null
 
         this.notifyStateChanged()
     }
@@ -532,17 +534,6 @@ export type LogoutOptions = {
      * A url to send the user to after logging out.
      */
     return_to?: string,
-}
-
-/**
- * Options for the `client.getUserInfo()` method
- */
-export type GetUserInfoOptions = {
-
-    /**
-     * If `true`, the user information is refreshed every time the method is called (defaults to `false`).
-     */
-    disable_caching: boolean
 }
 
 /**
