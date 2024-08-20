@@ -4,13 +4,16 @@
 
     const client = getContextAPSAuthClient()
 
+    let is_authorized = $state<boolean>(false);
     let access_token = $state<string|null>(null);
     let refresh_token = $state<string|null>(null);
     let view_access_token = $state<boolean>(false);
     let view_refresh_token = $state<boolean>(false);
     let user_info = $state<AutodeskUserInformation|null>(null);
+    let show_user_info = $state<boolean>(false)
 
     client.subscribe(async token => {
+        is_authorized = client.isAuthorized()
         access_token = token
         refresh_token = localStorage.getItem(client.REFRESH_TOKEN_KEY)
         user_info = await client.getUserInfo()
@@ -30,7 +33,7 @@
     <h1> Home </h1>
 
     <div>
-        {#if access_token}
+        {#if is_authorized}
             <div>
                 <p> You are authenticated! </p>
             </div>
@@ -65,7 +68,7 @@
                 > Show </button>
     
                 {#if view_refresh_token}
-                    <p> {refresh_token} </p>
+                    <p class="show-token"> {refresh_token} </p>
                 {:else}
                     ********
                 {/if}
@@ -88,9 +91,17 @@
             <br>
     
             <div>
-                <pre> 
+                <button
+                    onclick={() => show_user_info = !show_user_info}
+                > 
+                    {#if !show_user_info} Show User Information {:else} Hide User Information {/if}
+                </button>
+
+                {#if show_user_info}
+                <pre class="scrollable"> 
                     {JSON.stringify(user_info, undefined, 2)}
                 </pre>
+                {/if}
             </div>
     
             <br>
@@ -114,5 +125,10 @@
     main {
         max-width: 600px;
         margin: auto;
+    }
+
+    .scrollable {
+        height: 20rem;
+        overflow-y: auto
     }
 </style>

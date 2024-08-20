@@ -57,7 +57,10 @@
     
     <div class="navigation-bar">
         {#if user_info}
-            <div> Hello {user_info.name} </div>
+            <div> 
+                Hello {user_info.name}
+                <img src={user_info.picture} alt="user-profile" class="user-profile">
+            </div>
         {/if}
         <button disabled={is_authorized} onclick={login}> Login </button>
         <button disabled={!is_authorized} onclick={logout}> Logout </button>
@@ -79,5 +82,9 @@
     .navigation-bar {
         display: flex;
         gap: 0.50rem;
+    }
+
+    .user-profile {
+        width: 1rem;
     }
 </style>
