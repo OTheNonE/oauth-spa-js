@@ -1,11 +1,12 @@
 <script lang="ts">
     import { PUBLIC_AEC_APP_ID } from '$env/static/public';
-    import { type APSAuthClient, createAPSAuthClient } from '$lib'
+    import { type APSAuthClient, type AutodeskUserInformation, createAPSAuthClient } from '$lib'
     import { setContextAPSAuthClient } from '$lib/context'
  
     const { children } = $props();
 
     let is_authorized = $state<boolean>(false)
+    let user_info = $state<AutodeskUserInformation|null>(null);
 
     const AEC_AUTH_SERVER_URL = "https://developer.api.autodesk.com/authentication/v2"
 
@@ -13,10 +14,14 @@
         client_id: PUBLIC_AEC_APP_ID,
         authorization_endpoint: `${AEC_AUTH_SERVER_URL}/authorize`,
         token_endpoint: `${AEC_AUTH_SERVER_URL}/token`,
+        user_info_endpoint: "https://api.userprofile.autodesk.com/userinfo",
         scope: ["data:read"]
     })
 
-    client.subscribe(access_token => is_authorized = client.isAuthorized())
+    client.subscribe(async access_token => {
+        is_authorized = client.isAuthorized()
+        user_info = await client.getUserInfo()
+    })
 
     setContextAPSAuthClient(client)
 
@@ -26,10 +31,7 @@
         await client.loginWithRedirect({ redirect_uri, state })
     }
 
-    async function logout() {
-        is_authorized = false;
-        client.logout();
-    }
+    const logout = async () => client.logout()
 
     const navigations = [{
         href: "/",
@@ -51,9 +53,15 @@
         {/each}
     </div>
 
-    <div> Autodesk Platform Services | Authentication Client for Single Page Applications </div>
+    <div> APS | Authentication Client for Single Page Applications </div>
     
     <div class="navigation-bar">
+        {#if user_info}
+            <div> 
+                Hello {user_info.name}
+                <img src={user_info.picture} alt="user-profile" class="user-profile">
+            </div>
+        {/if}
         <button disabled={is_authorized} onclick={login}> Login </button>
         <button disabled={!is_authorized} onclick={logout}> Logout </button>
     </div>
@@ -74,5 +82,9 @@
     .navigation-bar {
         display: flex;
         gap: 0.50rem;
+    }
+
+    .user-profile {
+        width: 1rem;
     }
 </style>
