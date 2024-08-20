@@ -20,6 +20,7 @@ const client = createAPSAuthClient({
     client_id: PUBLIC_AEC_APP_ID,
     authorization_endpoint: `https://developer.api.autodesk.com/authentication/v2/authorize`,
     token_endpoint: `https://developer.api.autodesk.com/authentication/v2/token`,
+    user_info_endpoint: "https://api.userprofile.autodesk.com/userinfo",
     scope: ["data:read"]
 })
 ```
@@ -52,7 +53,7 @@ window.location.href = state ?? "/"
 And get the access token from the client (the token is automatically refreshed by the method if expired):
 ```ts
 try {
-    await client.getAccessToken()
+    const access_token = await client.getAccessToken()
 } catch(e) {
     // Handle refresh access token error
 }
@@ -60,7 +61,11 @@ try {
 
 Subscribe to the authorization state of the client:
 ```ts
-client.subscribe(() => is_authorized = client.isAuthorized())
+client.subscribe(() => {
+    is_authorized = client.isAuthorized()
+    access_token = token
+    user_info = await client.getUserInfo()
+})
 ```
 
 Check out the [aps-spa-auth-js](https://github.com/OTheNonE/aps-spa-auth-js) Github repository for a simple example developed in SvelteKit.
