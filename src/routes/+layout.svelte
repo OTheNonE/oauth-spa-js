@@ -15,7 +15,7 @@
         authorization_endpoint: `${AEC_AUTH_SERVER_URL}/authorize`,
         token_endpoint: `${AEC_AUTH_SERVER_URL}/token`,
         user_info_endpoint: "https://api.userprofile.autodesk.com/userinfo",
-        scope: ["data:read"]
+        scope: ["openid", "data:read"]
     })
 
     client.subscribe(async access_token => {

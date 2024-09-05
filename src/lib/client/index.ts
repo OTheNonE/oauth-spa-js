@@ -44,9 +44,9 @@ export type CreateAPSAuthClientOptions = {
     user_info_endpoint?: string
     
     /**
-     * The scope privilegies to give the user. (e.g. `"data:read"`)
+     * The scope privilegies to give the user. The scopes are documented at: https://aps.autodesk.com/en/docs/oauth/v2/developers_guide/scopes/
      */
-    scope: string[],
+    scope: AutodeskScopes[],
 }
 
 /**
@@ -58,7 +58,7 @@ export class APSAuthClient {
     readonly client_id: string
 
     /** he scope privilegies to give the user. */
-    readonly scope: string[]
+    readonly scope: AutodeskScopes[]
 
     /** The autorization endpoint for authorizing the user. */
     readonly authorization_endpoint: string
@@ -368,6 +368,40 @@ export class APSAuthClient {
         return data
     }
 
+    /**
+     * Introspects the access token.
+     */
+    async introspect(): Promise<TokenIntrospection> {
+
+        const { client_id } = this
+
+        // if (!user_info_endpoint) throw new Error("No user information endpoint has been supplied to the client.")
+        const introspect_endpoint = "https://developer.api.autodesk.com/authentication/v2/introspect"
+
+        const access_token = await this.getAccessToken()
+
+        if (!access_token) return null
+
+        const init: RequestInit = {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: new URLSearchParams({
+                token: access_token,
+                client_id,
+            }).toString()
+        }
+
+        const result = await fetch(introspect_endpoint, init)
+        const data = await result.json()
+
+        if (result.status != 200) {
+            throw new Error(`${data.error} (${result.status}): ${data.error_description}`)
+        }
+
+        return data
+
+    }
+
     /* STATE HANDLING METHODS */
 
     private setTokens(params: { access_token: string, refresh_token: string, expires_in: number }): void {
@@ -666,3 +700,35 @@ export type AutodeskUserInformation = {
         sizeX360: string,
     };
 };
+
+export type TokenIntrospection = {
+    active: true,
+    scope: string,
+    exp: number,
+    client_id: string,
+    token_type: string,
+    userid: string,
+} | {
+    active: false,
+} | null
+
+export const AUTODESK_SCOPES = [
+    "user-profile:read",
+    "user:read",
+    "user:write",
+    "viewables:read",
+    "data:read",
+    "data:write",
+    "data:create",
+    "data:search",
+    "bucket:create",
+    "bucket:read",
+    "bucket:update",
+    "bucket:delete",
+    "code:all",
+    "account:read",
+    "account:write",
+    "openid",
+] as const
+
+export type AutodeskScopes = typeof AUTODESK_SCOPES[number]

@@ -27,6 +27,15 @@
         }
     }
 
+    async function introspectToken() {
+        try {
+            const introspect = await client.introspect()
+            console.log(introspect)
+        } catch(e) {
+            console.log(e)
+        }
+    }
+
 </script>
 
 <main>
@@ -86,6 +95,14 @@
                 <button
                     onclick={refreshAccessToken}
                 > Refresh Access Token </button>
+            </div>
+    
+            <br>
+    
+            <div>
+                <button
+                    onclick={introspectToken}
+                > Introspect Token </button>
             </div>
     
             <br>
