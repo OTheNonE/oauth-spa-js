@@ -48,6 +48,11 @@ export type CreateAPSAuthClientOptions = {
      */
     revoke_endpoint?: string
 
+    /** 
+     * The logout endpoint for logging out the user. (default: https://developer.api.autodesk.com/authentication/v2/logout)
+     */
+    logout_endpoint?: string
+
     /**
      * The user information endpoint where information of the authorized user is fetched. (default: https://api.userprofile.autodesk.com/userinfo).
      */
@@ -81,6 +86,9 @@ export class APSAuthClient {
 
     /** The revoke endpoint for revoking tokens. */
     readonly revoke_endpoint: string
+
+    /** The logout endpoint for logging out the user. */
+    readonly logout_endpoint: string
  
     /** The user information endpoint for fetching information of the authorized user. If null, then no endpoint has been supplied. */
     readonly user_info_endpoint: string
@@ -113,6 +121,7 @@ export class APSAuthClient {
         this.token_endpoint         = options.token_endpoint          ?? "https://developer.api.autodesk.com/authentication/v2/token"
         this.introspect_endpoint    = options.introspect_endpoint     ?? "https://developer.api.autodesk.com/authentication/v2/introspect"
         this.revoke_endpoint        = options.revoke_endpoint         ?? "https://developer.api.autodesk.com/authentication/v2/revoke"
+        this.logout_endpoint        = options.logout_endpoint         ?? "https://developer.api.autodesk.com/authentication/v2/logout"
         this.user_info_endpoint     = options.user_info_endpoint      ?? "https://api.userprofile.autodesk.com/userinfo"
         this.user_info              = null
         this.fetching_user_info     = null
@@ -320,10 +329,13 @@ export class APSAuthClient {
     }
 
     /**
-     * Log outs the user by revoking the tokens and clearing the local storage for tokens and challenges.
+     * Log outs the user by revoking the tokens and clearing the local storage for tokens and challenges. 
+     * 
+     * OPS! Do not call this method if the user is logged out.
      * @param options Options.
      */
     async logout(options: LogoutOptions = { return_to: undefined }): Promise<void> {
+        const { logout_endpoint } = this
         const { return_to } = options;
 
         const access_token = await this.getAccessToken()
@@ -335,7 +347,15 @@ export class APSAuthClient {
         this.clearTokens()
         this.clearCodeVerifier()
 
-        if (return_to) window.location.href = return_to
+        const redirect_uri = return_to ?? (() => {
+            const { origin, pathname } = window.location
+            return `${origin}${pathname}`
+        })()
+
+        const url = new URL(logout_endpoint)
+        url.searchParams.set("post_logout_redirect_uri", redirect_uri)
+
+        window.location.href = url.toString()
     }
 
     private async revokeToken(token: string, token_type_hint: "access_token" | "refresh_token") {
@@ -601,7 +621,7 @@ export type HandleRedirectCallbackOptions = {
 export type LogoutOptions = {
 
     /**
-     * A url to send the user to after logging out.
+     * A url to send the user to after logging out. If not specified, the user will be redirected back to his original location.
      */
     return_to?: string,
 }
