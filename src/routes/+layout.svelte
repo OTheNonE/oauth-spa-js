@@ -8,13 +8,8 @@
     let is_authorized = $state<boolean>(false)
     let user_info = $state<AutodeskUserInformation|null>(null);
 
-    const AEC_AUTH_SERVER_URL = "https://developer.api.autodesk.com/authentication/v2"
-
     const client: APSAuthClient = createAPSAuthClient({
         client_id: PUBLIC_AEC_APP_ID,
-        authorization_endpoint: `${AEC_AUTH_SERVER_URL}/authorize`,
-        token_endpoint: `${AEC_AUTH_SERVER_URL}/token`,
-        user_info_endpoint: "https://api.userprofile.autodesk.com/userinfo",
         scope: ["openid", "data:read"]
     })
 
@@ -31,7 +26,7 @@
         await client.loginWithRedirect({ redirect_uri, state })
     }
 
-    const logout = async () => client.logout()
+    const logout = async () => await client.logout()
 
     const navigations = [{
         href: "/",

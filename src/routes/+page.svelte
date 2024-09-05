@@ -29,7 +29,7 @@
 
     async function introspectToken() {
         try {
-            const introspect = await client.introspect()
+            const introspect = await client.introspectToken()
             console.log(introspect)
         } catch(e) {
             console.log(e)

@@ -29,17 +29,27 @@ export type CreateAPSAuthClientOptions = {
     client_id: string,
     
     /**
-     * The autorization endpoint for authorizing the user (usually https://developer.api.autodesk.com/authentication/v2/authorize).
+     * The autorization endpoint for authorizing the user. (default: https://developer.api.autodesk.com/authentication/v2/authorize).
      */
-    authorization_endpoint: string,
+    authorization_endpoint?: string,
 
     /**
-     * The token endpoint for optaining an access token (usually https://developer.api.autodesk.com/authentication/v2/token).
+     * The token endpoint for optaining an access token. (default: https://developer.api.autodesk.com/authentication/v2/token).
      */
-    token_endpoint: string,
+    token_endpoint?: string,
+
+    /** 
+     * The introspection endpoint for introspecting the access token. (default: https://developer.api.autodesk.com/authentication/v2/introspect)
+     */
+    introspect_endpoint?: string
+
+    /** 
+     * The revoke endpoint for revoking tokens. (default: https://developer.api.autodesk.com/authentication/v2/revoke)
+     */
+    revoke_endpoint?: string
 
     /**
-     * The user information endpoint where information of the authorized user is fetched (usually https://api.userprofile.autodesk.com/userinfo).
+     * The user information endpoint where information of the authorized user is fetched. (default: https://api.userprofile.autodesk.com/userinfo).
      */
     user_info_endpoint?: string
     
@@ -65,9 +75,15 @@ export class APSAuthClient {
 
     /** The token endpoint for optaining an access token. */
     readonly token_endpoint: string
+
+    /** The endpoint for introspecting the access token. */
+    readonly introspect_endpoint: string
+
+    /** The revoke endpoint for revoking tokens. */
+    readonly revoke_endpoint: string
  
     /** The user information endpoint for fetching information of the authorized user. If null, then no endpoint has been supplied. */
-    readonly user_info_endpoint: string | null
+    readonly user_info_endpoint: string
 
     /** The user information. */
     private user_info: AutodeskUserInformation | null
@@ -91,18 +107,20 @@ export class APSAuthClient {
     
     constructor(options: CreateAPSAuthClientOptions) {
 
-        this.client_id = options.client_id
-        this.scope = options.scope
-        this.authorization_endpoint = options.authorization_endpoint
-        this.token_endpoint = options.token_endpoint
-        this.user_info_endpoint = options.user_info_endpoint ?? null
-        this.user_info = null
-        this.fetching_user_info = null
+        this.client_id              = options.client_id
+        this.scope                  = options.scope
+        this.authorization_endpoint = options.authorization_endpoint  ?? "https://developer.api.autodesk.com/authentication/v2/authorize"
+        this.token_endpoint         = options.token_endpoint          ?? "https://developer.api.autodesk.com/authentication/v2/token"
+        this.introspect_endpoint    = options.introspect_endpoint     ?? "https://developer.api.autodesk.com/authentication/v2/introspect"
+        this.revoke_endpoint        = options.revoke_endpoint         ?? "https://developer.api.autodesk.com/authentication/v2/revoke"
+        this.user_info_endpoint     = options.user_info_endpoint      ?? "https://api.userprofile.autodesk.com/userinfo"
+        this.user_info              = null
+        this.fetching_user_info     = null
 
-        this.ACCESS_TOKEN_KEY = `${options.client_id}.APSAccessToken`
-        this.REFRESH_TOKEN_KEY = `${options.client_id}.APSRefreshToken`
-        this.CODE_VERIFIER_KEY = `${options.client_id}.APSCodeVerifier`
-        this.EXPIRATION_TIME_KEY = `${options.client_id}.APSExpirationTime`
+        this.ACCESS_TOKEN_KEY       = `${options.client_id}.APSAccessToken`
+        this.REFRESH_TOKEN_KEY      = `${options.client_id}.APSRefreshToken`
+        this.CODE_VERIFIER_KEY      = `${options.client_id}.APSCodeVerifier`
+        this.EXPIRATION_TIME_KEY    = `${options.client_id}.APSExpirationTime`
 
         this.state_changed_callbacks = new Set()
     }
@@ -302,15 +320,38 @@ export class APSAuthClient {
     }
 
     /**
-     * Log outs the user by clearing the local storage for tokens and challenges.
+     * Log outs the user by revoking the tokens and clearing the local storage for tokens and challenges.
      * @param options Options.
      */
-    logout(options: LogoutOptions = { return_to: undefined }): void {
+    async logout(options: LogoutOptions = { return_to: undefined }): Promise<void> {
+        const { return_to } = options;
+
+        const access_token = await this.getAccessToken()
+        const refresh_token = this.getRefreshToken()
+
+        if (access_token) this.revokeToken(access_token, "access_token")
+        if (refresh_token) this.revokeToken(refresh_token, "refresh_token")
+
         this.clearTokens()
         this.clearCodeVerifier()
 
-        const { return_to } = options;
         if (return_to) window.location.href = return_to
+    }
+
+    private async revokeToken(token: string, token_type_hint: "access_token" | "refresh_token") {
+        const { client_id, revoke_endpoint } = this
+
+        const init: RequestInit = {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: new URLSearchParams({
+                token,
+                token_type_hint,
+                client_id,
+            }).toString()
+        }
+
+        await fetch(revoke_endpoint, init)
     }
 
     /**
@@ -346,8 +387,6 @@ export class APSAuthClient {
     private async fetchUserInfo(): Promise<AutodeskUserInformation | null> {
         const { user_info_endpoint } = this
 
-        if (!user_info_endpoint) throw new Error("No user information endpoint has been supplied to the client.")
-
         const access_token = await this.getAccessToken()
 
         if (!access_token) return null
@@ -369,14 +408,11 @@ export class APSAuthClient {
     }
 
     /**
-     * Introspects the access token.
+     * Introspects the access token. If `null` is returned, no access token is stored in local storage.
      */
-    async introspect(): Promise<TokenIntrospection> {
+    async introspectToken(): Promise<TokenIntrospection> {
 
-        const { client_id } = this
-
-        // if (!user_info_endpoint) throw new Error("No user information endpoint has been supplied to the client.")
-        const introspect_endpoint = "https://developer.api.autodesk.com/authentication/v2/introspect"
+        const { client_id, introspect_endpoint } = this
 
         const access_token = await this.getAccessToken()
 
