@@ -72,8 +72,8 @@ export class APSAuthClient {
     /** The Client ID of the application used. */
     readonly client_id: string
 
-    /** he scope privilegies to give the user. */
-    readonly scope: AutodeskScopes[]
+    /** The scope privilegies to give the user. */
+    readonly scope: string
 
     /** The autorization endpoint for authorizing the user. */
     readonly authorization_endpoint: string
@@ -116,7 +116,7 @@ export class APSAuthClient {
     constructor(options: CreateAPSAuthClientOptions) {
 
         this.client_id              = options.client_id
-        this.scope                  = options.scope
+        this.scope                  = options.scope.join(" ")
         this.authorization_endpoint = options.authorization_endpoint  ?? "https://developer.api.autodesk.com/authentication/v2/authorize"
         this.token_endpoint         = options.token_endpoint          ?? "https://developer.api.autodesk.com/authentication/v2/token"
         this.introspect_endpoint    = options.introspect_endpoint     ?? "https://developer.api.autodesk.com/authentication/v2/introspect"
@@ -150,7 +150,7 @@ export class APSAuthClient {
      * }
      * ```
      */
-    async loginWithRedirect(options: LoginWithRedirectOption, additionalSearchParams?: { [key: string]: string }): Promise<void> {
+    async loginWithRedirect(options: LoginWithRedirectOption): Promise<void> {
         const { redirect_uri, prompt, state } = options
         const { client_id, scope, authorization_endpoint } = this
 
@@ -159,35 +159,28 @@ export class APSAuthClient {
 
         const url = new URL(authorization_endpoint)
 
-        const built_in_params = { 
+        const searchParams = { 
             client_id, 
             redirect_uri, 
             code_challenge,
             scope,
             prompt,
             state,
+            respose_mode: "query",
             response_type: "code",
             nonce: "12321321",
             method: "S256",
         }
 
-        const searchParams = { ...built_in_params, ...additionalSearchParams,   }
-
         Object.entries(searchParams).forEach(([key, value]) => {
-            if (value == undefined) {
-                return
-            } else if (Array.isArray(value)) {
-                const joined_array = value.join(" ")
-                if (joined_array.length == 0) return
-
-                url.searchParams.set(key, value.join(" "))
-            } else if (typeof value == "string") {
-                url.searchParams.set(key, value)
-            }
+            if (value == undefined) return 
+            else url.searchParams.set(key, value)
         })
 
         // Is it correct that the code verifier is supposed to be the code challenge?
         this.setCodeVerifier(code_challenge)
+
+        console.log(url.toString())
 
         window.location.href = url.toString()
     }
@@ -219,7 +212,7 @@ export class APSAuthClient {
      */
     async handleRedirectCallback(options: HandleRedirectCallbackOptions): Promise<void> {
         const { redirect_uri } = options
-        const { client_id, token_endpoint } = this
+        const { client_id, token_endpoint, scope } = this
 
         const code = this.getCodeFromSearchParams()
         const code_verifier = this.getCodeVerifier()
@@ -236,6 +229,7 @@ export class APSAuthClient {
                 client_id,
                 code_verifier,
                 code,
+                scope,
                 redirect_uri,
                 grant_type: "authorization_code",
             }).toString()
@@ -293,7 +287,7 @@ export class APSAuthClient {
             body: new URLSearchParams({
                 client_id,
                 refresh_token,
-                scope: scope.join(" "),
+                scope,
                 grant_type: "refresh_token",
             }).toString()
         }
@@ -416,11 +410,15 @@ export class APSAuthClient {
             headers: { Authorization: access_token },
         }
 
+        // console.log({ user_info_endpoint, init })
+
+        // return null
+
         const result = await fetch(user_info_endpoint, init)
         const data = await result.json()
 
         if (result.status != 200) {
-            this.clearTokens()
+            console.log(data)
             throw new Error(`${data.error} (${result.status}): ${data.error_description}`)
         }
 
