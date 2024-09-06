@@ -1,21 +1,25 @@
 <script lang="ts">
-    import { PUBLIC_APP_ID } from '$env/static/public';
     import { type OAuthClient, createOAuthClient } from '$lib'
+    import { PUBLIC_APP_ID } from '$env/static/public';
     import { setContextOAuthClient } from '$lib/context'
-    import { type AutodeskUserInformation } from '$lib/autodesk'
+    import { type AutodeskScope, type AutodeskUserInformation } from '$lib/autodesk'
  
     const { children } = $props();
 
     let is_authorized = $state<boolean>(false)
     let user_info = $state<AutodeskUserInformation|null>(null);
 
+    const scopes: AutodeskScope[] = ["openid", "data:read"]
+
     const client: OAuthClient = createOAuthClient({
-        authorization_endpoint: "",
-        token_endpoint: "",
-        logout_endpoint: "",
-        revoke_endpoint: "",
         client_id: PUBLIC_APP_ID,
-        scope: ["openid", "data:read"]
+        authorization_endpoint: "https://developer.api.autodesk.com/authentication/v2/authorize",
+        token_endpoint: "https://developer.api.autodesk.com/authentication/v2/token",
+        logout_endpoint: "https://developer.api.autodesk.com/authentication/v2/logout",
+        revoke_endpoint: "https://developer.api.autodesk.com/authentication/v2/revoke",
+        introspect_endpoint: "https://developer.api.autodesk.com/authentication/v2/introspect",
+        user_info_endpoint: "https://api.userprofile.autodesk.com/userinfo",
+        scopes
     })
 
     client.subscribe(async access_token => {

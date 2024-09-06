@@ -59,7 +59,7 @@ export type CreateOAuthClientOptions = {
     /**
      * The scope privilegies to give the user.
      */
-    scope: string[],
+    scopes: string[],
 }
 
 /**
@@ -114,7 +114,7 @@ export class OAuthClient {
     constructor(options: CreateOAuthClientOptions) {
 
         this.client_id              = options.client_id
-        this.scope                  = options.scope.join(" ")
+        this.scope                  = options.scopes.join(" ")
         this.authorization_endpoint = options.authorization_endpoint
         this.token_endpoint         = options.token_endpoint
         this.introspect_endpoint    = options.introspect_endpoint ?? null

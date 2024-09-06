@@ -131,4 +131,4 @@ export const AUTODESK_SCOPES = [
     "openid",
 ] as const
 
-export type AutodeskScopes = typeof AUTODESK_SCOPES[number]
+export type AutodeskScope = typeof AUTODESK_SCOPES[number]
