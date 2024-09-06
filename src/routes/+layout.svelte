@@ -9,15 +9,20 @@
     let is_authorized = $state<boolean>(false)
     let user_info = $state<AutodeskUserInformation|null>(null);
 
-    const scopes: AutodeskScope[] = ["openid", "data:read"]
+    const scopes: string[] = [
+        "api://77c68517-7444-4ac4-a135-ab81cd4615b6/.default",
+        "https://graph.microsoft.com/.default"
+    ]
+
+    const SERVER_URL = "https://login.microsoftonline.com/92d2ad85-14cf-47ac-be4b-93ed3d312f25/oauth2/v2.0"
 
     const client: OAuthClient = createOAuthClient({
         client_id: PUBLIC_APP_ID,
-        authorization_endpoint: "https://developer.api.autodesk.com/authentication/v2/authorize",
-        token_endpoint: "https://developer.api.autodesk.com/authentication/v2/token",
-        logout_endpoint: "https://developer.api.autodesk.com/authentication/v2/logout",
-        revoke_endpoint: "https://developer.api.autodesk.com/authentication/v2/revoke",
-        introspect_endpoint: "https://developer.api.autodesk.com/authentication/v2/introspect",
+        authorization_endpoint: `${SERVER_URL}/authorize`,
+        token_endpoint: `${SERVER_URL}/token`,
+        logout_endpoint: `${SERVER_URL}/logout`,
+        revoke_endpoint: `${SERVER_URL}/revoke`,
+        introspect_endpoint: `${SERVER_URL}/introspect`,
         user_info_endpoint: "https://api.userprofile.autodesk.com/userinfo",
         scopes
     })

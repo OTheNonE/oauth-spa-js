@@ -71,7 +71,7 @@ export class OAuthClient {
     readonly client_id: string
 
     /** The scope privilegies to give the user. */
-    readonly scope: string
+    readonly scopes: string[]
 
     /** The autorization endpoint for authorizing the user. */
     readonly authorization_endpoint: string
@@ -114,7 +114,7 @@ export class OAuthClient {
     constructor(options: CreateOAuthClientOptions) {
 
         this.client_id              = options.client_id
-        this.scope                  = options.scopes.join(" ")
+        this.scopes                 = options.scopes
         this.authorization_endpoint = options.authorization_endpoint
         this.token_endpoint         = options.token_endpoint
         this.introspect_endpoint    = options.introspect_endpoint ?? null
@@ -150,7 +150,9 @@ export class OAuthClient {
      */
     async loginWithRedirect(options: LoginWithRedirectOption): Promise<void> {
         const { redirect_uri, prompt, state } = options
-        const { client_id, scope, authorization_endpoint } = this
+        const { client_id, scopes, authorization_endpoint } = this
+
+        const scope = scopes.join(" ")
 
         const code_verifier = generateCodeVerifier()
         const code_challenge = await generateCodeChallenge(code_verifier)
@@ -210,7 +212,9 @@ export class OAuthClient {
      */
     async handleRedirectCallback(options: HandleRedirectCallbackOptions): Promise<void> {
         const { redirect_uri } = options
-        const { client_id, token_endpoint, scope } = this
+        const { client_id, token_endpoint, scopes } = this
+
+        const scope = scopes.join(" ")
 
         const code = this.getCodeFromSearchParams()
         const code_verifier = this.getCodeVerifier()
@@ -219,7 +223,7 @@ export class OAuthClient {
         if (!code) throw new Error("No code was found from the callback url.")
 
         if (!code_verifier) throw new Error("No code verifier was stored in local storage.")
-
+            
         const init: RequestInit = {
             method: "POST",
             headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -235,6 +239,8 @@ export class OAuthClient {
 
         const result = await fetch(token_endpoint, init)
         const data = await result.json()
+
+        console.log(data)
 
         if (result.status != 200) throw new Error(`${data.error} (${result.status}): ${data.error_description}`)
         
@@ -253,6 +259,7 @@ export class OAuthClient {
         }
 
         this.setTokens({ access_token, refresh_token, expires_in })
+        
     }
 
     /**
@@ -270,7 +277,9 @@ export class OAuthClient {
      * ```
      */
     async refreshAccessToken() {
-        const { client_id, token_endpoint, scope } = this
+        const { client_id, token_endpoint, scopes } = this
+
+        const scope = scopes.join(" ")
 
         const refresh_token = this.getRefreshToken()
 
