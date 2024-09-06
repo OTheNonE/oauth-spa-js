@@ -1,27 +1,32 @@
 <script lang="ts">
-    import { PUBLIC_AEC_APP_ID } from '$env/static/public';
-    import { type APSAuthClient, type AutodeskUserInformation, createAPSAuthClient } from '$lib'
-    import { setContextAPSAuthClient } from '$lib/context'
+    import { PUBLIC_APP_ID } from '$env/static/public';
+    import { type OAuthClient, createOAuthClient } from '$lib'
+    import { setContextOAuthClient } from '$lib/context'
+    import { type AutodeskUserInformation } from '$lib/autodesk'
  
     const { children } = $props();
 
     let is_authorized = $state<boolean>(false)
     let user_info = $state<AutodeskUserInformation|null>(null);
 
-    const client: APSAuthClient = createAPSAuthClient({
-        client_id: PUBLIC_AEC_APP_ID,
+    const client: OAuthClient = createOAuthClient({
+        authorization_endpoint: "",
+        token_endpoint: "",
+        logout_endpoint: "",
+        revoke_endpoint: "",
+        client_id: PUBLIC_APP_ID,
         scope: ["openid", "data:read"]
     })
 
     client.subscribe(async access_token => {
         is_authorized = client.isAuthorized()
-        user_info = await client.getUserInfo()
+        user_info = await client.getUserInfo<AutodeskUserInformation>()
     })
 
-    setContextAPSAuthClient(client)
+    setContextOAuthClient(client)
 
     async function login() {
-        const redirect_uri = `${window.location.origin}/auth/autodesk/callback`
+        const redirect_uri = `${window.location.origin}/oauth/callback`
         const state = window.location.href
         await client.loginWithRedirect({ redirect_uri, state })
     }

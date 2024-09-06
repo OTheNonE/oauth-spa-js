@@ -1,11 +1,11 @@
 <script lang="ts">
-    import { getContextAPSAuthClient } from "$lib/context";
+    import { getContextOAuthClient } from "$lib/context";
     import { page } from "$app/stores";
     import { goto } from "$app/navigation"
     
     const handleCallback = async () => {
         
-        const client = getContextAPSAuthClient()
+        const client = getContextOAuthClient()
         
         const { origin, pathname } = $page.url
         const redirect_uri = `${origin}${pathname}`

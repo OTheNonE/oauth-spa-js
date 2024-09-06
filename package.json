@@ -1,21 +1,21 @@
 {
 	"author": "Ólavur Nón",
-	"name": "aps-spa-auth-js",
-	"description": "Single-Page Application Authorization Client for Autodesk Platform Services",
+	"name": "oauth-spa-js",
+	"description": "Single-Page Application Authorization Client for the OAuth 2.0 flow",
 	"license": "MIT",
 	"version": "0.7.3",
-	"homepage": "https://github.com/OTheNonE/aps-spa-auth-js",
+	"homepage": "https://github.com/OTheNonE/oauth-spa-js",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/OTheNonE/aps-spa-auth-js"
+		"url": "https://github.com/OTheNonE/oauth-spa-js"
 	},
-	"bugs": "https://github.com/OTheNonE/aps-spa-auth-js/issues",
+	"bugs": "https://github.com/OTheNonE/oauth-spa-js/issues",
 	"keywords": [
-		"Autodesk Platform Services",
 		"Single Page Application",
 		"Authorization",
 		"SDK",
 		"OAuth",
+		"OpenID Connect",
 		"PKCE"
 	],
 	"type": "module",

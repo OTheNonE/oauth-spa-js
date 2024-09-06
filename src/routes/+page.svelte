@@ -1,8 +1,8 @@
 <script lang="ts">
-    import { type AutodeskUserInformation } from "$lib";
-    import { getContextAPSAuthClient } from "$lib/context";
+    import { type AutodeskUserInformation } from '$lib/autodesk'
+    import { getContextOAuthClient } from "$lib/context";
 
-    const client = getContextAPSAuthClient()
+    const client = getContextOAuthClient()
 
     let is_authorized = $state<boolean>(false);
     let access_token = $state<string|null>(null);

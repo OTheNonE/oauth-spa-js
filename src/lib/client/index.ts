@@ -1,73 +1,71 @@
 import { generateCodeChallenge, generateCodeVerifier } from "../challenge"
 
 /** 
- * Creates an APS Authentication Client.
+ * Creates an OAuth Client.
  * 
  * Example:
  * ```ts
- * const AEC_AUTH_SERVER_URL = "https://developer.api.autodesk.com/authentication/v2"
- * 
- * const client: APSAuthClient = createAPSAuthClient({
+ * const client: OAuthClient = createOAuthClient({
  *     clientId: PUBLIC_AEC_APP_ID,
- *     authorizationEndpoint: `${AEC_AUTH_SERVER_URL}/authorize`,
- *     tokenEndpoint: `${AEC_AUTH_SERVER_URL}/token`,
+ *     authorizationEndpoint: `${AUTH_SERVER_URL}/authorize`,
+ *     tokenEndpoint: `${AUTH_SERVER_URL}/token`,
  *     scope: ["data:read"]
  * })
  * ```
  */
-export function createAPSAuthClient(options: CreateAPSAuthClientOptions): APSAuthClient {
-    return new APSAuthClient(options)
+export function createOAuthClient(options: CreateOAuthClientOptions): OAuthClient {
+    return new OAuthClient(options)
 }
 
 /**
  * @param options Options object.
  */
-export type CreateAPSAuthClientOptions = {
+export type CreateOAuthClientOptions = {
     /**
      * The Client ID of the application used.
      */
     client_id: string,
     
     /**
-     * The autorization endpoint for authorizing the user. (default: https://developer.api.autodesk.com/authentication/v2/authorize).
+     * The autorization endpoint for authorizing the user. (default: {}/authorize).
      */
-    authorization_endpoint?: string,
+    authorization_endpoint: string,
 
     /**
-     * The token endpoint for optaining an access token. (default: https://developer.api.autodesk.com/authentication/v2/token).
+     * The token endpoint for optaining an access token.
      */
-    token_endpoint?: string,
+    token_endpoint: string,
 
     /** 
-     * The introspection endpoint for introspecting the access token. (default: https://developer.api.autodesk.com/authentication/v2/introspect)
+     * The introspection endpoint for introspecting the access token.
      */
     introspect_endpoint?: string
 
     /** 
-     * The revoke endpoint for revoking tokens. (default: https://developer.api.autodesk.com/authentication/v2/revoke)
+     * The revoke endpoint for revoking tokens.
      */
-    revoke_endpoint?: string
+    revoke_endpoint: string
 
     /** 
-     * The logout endpoint for logging out the user. (default: https://developer.api.autodesk.com/authentication/v2/logout)
+     * The logout endpoint for logging out the user.
      */
-    logout_endpoint?: string
+    logout_endpoint: string
 
     /**
-     * The user information endpoint where information of the authorized user is fetched. (default: https://api.userprofile.autodesk.com/userinfo).
+     * The user information endpoint where information of the authorized user is fetched.
      */
     user_info_endpoint?: string
     
     /**
-     * The scope privilegies to give the user. The scopes are documented at: https://aps.autodesk.com/en/docs/oauth/v2/developers_guide/scopes/
+     * The scope privilegies to give the user.
      */
-    scope: AutodeskScopes[],
+    scope: string[],
 }
 
 /**
- * The APS Authentication Client.
+ * The OAuth Authentication Client.
  */
-export class APSAuthClient {
+export class OAuthClient {
     
     /** The Client ID of the application used. */
     readonly client_id: string
@@ -82,7 +80,7 @@ export class APSAuthClient {
     readonly token_endpoint: string
 
     /** The endpoint for introspecting the access token. */
-    readonly introspect_endpoint: string
+    readonly introspect_endpoint: string | null
 
     /** The revoke endpoint for revoking tokens. */
     readonly revoke_endpoint: string
@@ -91,13 +89,13 @@ export class APSAuthClient {
     readonly logout_endpoint: string
  
     /** The user information endpoint for fetching information of the authorized user. If null, then no endpoint has been supplied. */
-    readonly user_info_endpoint: string
+    readonly user_info_endpoint: string | null
 
     /** The user information. */
-    private user_info: AutodeskUserInformation | null
+    private user_info: any
 
     /** Fetching user information. If `null`, then no fetching is in progress. If `Promise<null>`, then `null` was returned from the fetch, and the promise is not cleaned up. */
-    private fetching_user_info: Promise<AutodeskUserInformation | null> | null
+    private fetching_user_info: Promise<any | null> | null
 
     /** The key for retrieving the access token from local storage. */
     readonly ACCESS_TOKEN_KEY: string
@@ -113,23 +111,23 @@ export class APSAuthClient {
 
     private state_changed_callbacks: Set<(access_token: string | null) => void>
     
-    constructor(options: CreateAPSAuthClientOptions) {
+    constructor(options: CreateOAuthClientOptions) {
 
         this.client_id              = options.client_id
         this.scope                  = options.scope.join(" ")
-        this.authorization_endpoint = options.authorization_endpoint  ?? "https://developer.api.autodesk.com/authentication/v2/authorize"
-        this.token_endpoint         = options.token_endpoint          ?? "https://developer.api.autodesk.com/authentication/v2/token"
-        this.introspect_endpoint    = options.introspect_endpoint     ?? "https://developer.api.autodesk.com/authentication/v2/introspect"
-        this.revoke_endpoint        = options.revoke_endpoint         ?? "https://developer.api.autodesk.com/authentication/v2/revoke"
-        this.logout_endpoint        = options.logout_endpoint         ?? "https://developer.api.autodesk.com/authentication/v2/logout"
-        this.user_info_endpoint     = options.user_info_endpoint      ?? "https://api.userprofile.autodesk.com/userinfo"
+        this.authorization_endpoint = options.authorization_endpoint
+        this.token_endpoint         = options.token_endpoint
+        this.introspect_endpoint    = options.introspect_endpoint ?? null
+        this.revoke_endpoint        = options.revoke_endpoint
+        this.logout_endpoint        = options.logout_endpoint
+        this.user_info_endpoint     = options.user_info_endpoint ?? null
         this.user_info              = null
         this.fetching_user_info     = null
 
-        this.ACCESS_TOKEN_KEY       = `${options.client_id}.APSAccessToken`
-        this.REFRESH_TOKEN_KEY      = `${options.client_id}.APSRefreshToken`
-        this.CODE_VERIFIER_KEY      = `${options.client_id}.APSCodeVerifier`
-        this.EXPIRATION_TIME_KEY    = `${options.client_id}.APSExpirationTime`
+        this.ACCESS_TOKEN_KEY       = `${options.client_id}.OAuthAccessToken`
+        this.REFRESH_TOKEN_KEY      = `${options.client_id}.OAuthRefreshToken`
+        this.CODE_VERIFIER_KEY      = `${options.client_id}.OAuthCodeVerifier`
+        this.EXPIRATION_TIME_KEY    = `${options.client_id}.OAuthExpirationTime`
 
         this.state_changed_callbacks = new Set()
     }
@@ -138,14 +136,14 @@ export class APSAuthClient {
     /* FLOW METHODS */
 
     /**
-     * Redirects the user to Autodesks authorization page.
+     * Redirects the user to authorization provider page.
      * @param options Options.
      * @param [additionalSearchParams] Additional SearchParams to add to the authorization request.
      * 
      * Example:
      * ```ts
      * async function login() {
-     *     const redirect_uri = `${window.location.origin}/auth/autodesk/callback`
+     *     const redirect_uri = `${window.location.origin}/oauth/callback`
      *     await client.loginWithRedirect({ redirect_uri })
      * }
      * ```
@@ -195,8 +193,8 @@ export class APSAuthClient {
      * 
      * Example:
      * ```ts
-     * // https://example.com/auth/autodesk/callback
-     * const client = getContextAPSAuthClient()
+     * // https://example.com/oauth/callback
+     * const client = getContextOAuthClient()
      * const { origin, pathname } = $page.url
      * const redirect_uri = `${origin}${pathname}`
      *      
@@ -381,7 +379,7 @@ export class APSAuthClient {
      * Gets information of the authenticated user. If `null` is returned, the client is not authenticated. The user information is cached upon fetching. 
      * @throws if `user_info_endpoint` is not specified.
      */
-    async getUserInfo(): Promise<AutodeskUserInformation | null> {
+    async getUserInfo<T>(): Promise<T | null> {
         if (this.fetching_user_info) await this.fetching_user_info
         
         const { user_info } = this
@@ -398,8 +396,10 @@ export class APSAuthClient {
         }
     }
 
-    private async fetchUserInfo(): Promise<AutodeskUserInformation | null> {
+    private async fetchUserInfo<T>(): Promise<T | null> {
         const { user_info_endpoint } = this
+
+        if (!user_info_endpoint) throw new Error("The user information endpoint has not been specified.")
 
         const access_token = await this.getAccessToken()
 
@@ -429,8 +429,9 @@ export class APSAuthClient {
      * Introspects the access token. If `null` is returned, no access token is stored in local storage.
      */
     async introspectToken(): Promise<TokenIntrospection> {
-
         const { client_id, introspect_endpoint } = this
+
+        if (!introspect_endpoint) throw new Error("The token introspection endpoint has not been specified.")
 
         const access_token = await this.getAccessToken()
 
@@ -587,7 +588,7 @@ export class APSAuthClient {
 export type LoginWithRedirectOption = {
 
     /**
-     * The url to redirect the user to after authentication (e.g. https://example.com/auth/autodesk/callback). The redirect URI handles the response from the authorization server.
+     * The url to redirect the user to after authentication (e.g. https://example.com/oauth/callback). The redirect URI handles the response from the authorization server.
      */
     redirect_uri: string,
 
@@ -642,119 +643,6 @@ export type GetAccessTokenOptions = {
  */
 export type UnsubscribeToAuthState = () => void
 
-/**
-* Represents a user profile information object.
-*/
-export type AutodeskUserInformation = {
-
-    /** Oxygen id of the user */
-    sub: string;
-    
-    /** Full name of the user */
-    name: string;
-    
-    /** First name of the user */
-    given_name: string;
-    
-    /** Last name of the user */
-    family_name: string;
-    
-    /** Username of the user */
-    preferred_username: string;
-    
-    /** Primary email of the user */
-    email: string;
-    
-    /** Flag that shows if the user's email is verified or not */
-    email_verified: boolean;
-    
-    /** URL for the profile of the user */
-    profile: string;
-    
-    /** Profile image of the user (x120 thumbnail) */
-    picture: string;
-    
-    /** End-User's locale, represented as a BCP47 standard (eg, en-US) */
-    locale: string;
-    
-    /** The second-precision Unix timestamp of last modification on the user profile */
-    updated_at: number;
-    
-    /** Flag is true if two factor authentication is enabled for this profile. */
-    is_2fa_enabled: boolean;
-    
-    /** The country code assigned to the account at creation. */
-    country_code: string;
-    
-    /** Object containing contact address information */
-    address: {
-        street_address: string,
-        locality: string,
-        region: string,
-        postal_code: string,
-        country: string,
-    };
-    
-    /** The primary phone number of the user profile with country code and extension in the format: "+(countryCode) (phoneNumber) #(Extension)" */
-    phone_number: string;
-    
-    /** Flag to tell whether or not above phone number was verified */
-    phone_number_verified: boolean;
-    
-    /** Flag for the LDAP/SSO Status of the user, true if is ldap user. */
-    ldap_enabled: boolean;
-    
-    /** Domain name for the LDAP user null if non LDAP user */
-    ldap_domain: string;
-    
-    /** The job title selected on the user profile. */
-    job_title: string;
-    
-    /** The industry selected on the user profile. */
-    industry: string;
-    
-    /** The industry code associated on the user profile */
-    industry_code: string;
-    
-    /** The about me text on the user profile */
-    about_me: string;
-    
-    /** The language selected by the user */
-    language: string;
-    
-    /** The company on the user profile */
-    company: string;
-    
-    /** The datetime (UTC) the user was created */
-    created_date: string;
-    
-    /** The last login date (UTC) of the user */
-    last_login_date: string;
-    
-    /** Eidm Identifier. */
-    eidm_guid: string;
-    
-    /** The flag that indicates if user opts in the marketing information. */
-    opt_in: boolean;
-    
-    /** Social provider name and provider identifier when the user is a social user or else empty list. */
-    social_userinfo_list: Array<object>;
-    
-    /** Object with profile image thumbnail urls for each size by key. */
-    thumbnails: {
-        sizeX20: string,
-        sizeX40: string,
-        sizeX50: string,
-        sizeX58: string,
-        sizeX80: string,
-        sizeX120: string,
-        sizeX160: string,
-        sizeX176: string,
-        sizeX240: string,
-        sizeX360: string,
-    };
-};
-
 export type TokenIntrospection = {
     active: true,
     scope: string,
@@ -765,24 +653,3 @@ export type TokenIntrospection = {
 } | {
     active: false,
 } | null
-
-export const AUTODESK_SCOPES = [
-    "user-profile:read",
-    "user:read",
-    "user:write",
-    "viewables:read",
-    "data:read",
-    "data:write",
-    "data:create",
-    "data:search",
-    "bucket:create",
-    "bucket:read",
-    "bucket:update",
-    "bucket:delete",
-    "code:all",
-    "account:read",
-    "account:write",
-    "openid",
-] as const
-
-export type AutodeskScopes = typeof AUTODESK_SCOPES[number]
