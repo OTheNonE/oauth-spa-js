@@ -214,8 +214,6 @@ export class OAuthClient {
         const { redirect_uri } = options
         const { client_id, token_endpoint, scopes } = this
 
-        const scope = scopes.join(" ")
-
         const code = this.getCodeFromSearchParams()
         const code_verifier = this.getCodeVerifier()
         this.clearCodeVerifier()
@@ -223,7 +221,9 @@ export class OAuthClient {
         if (!code) throw new Error("No code was found from the callback url.")
 
         if (!code_verifier) throw new Error("No code verifier was stored in local storage.")
-            
+
+        const scope = scopes.join(" ")
+
         const init: RequestInit = {
             method: "POST",
             headers: { "Content-Type": "application/x-www-form-urlencoded" },

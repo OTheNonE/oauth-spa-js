@@ -10,8 +10,9 @@
     let user_info = $state<AutodeskUserInformation|null>(null);
 
     const scopes: string[] = [
-        "api://77c68517-7444-4ac4-a135-ab81cd4615b6/.default",
-        "https://graph.microsoft.com/.default"
+        "api://77c68517-7444-4ac4-a135-ab81cd4615b6/data.read",
+        "https://graph.microsoft.com/User.Read",
+        "api://77c68517-7444-4ac4-a135-ab81cd4615b6/data.write",
     ]
 
     const SERVER_URL = "https://login.microsoftonline.com/92d2ad85-14cf-47ac-be4b-93ed3d312f25/oauth2/v2.0"
