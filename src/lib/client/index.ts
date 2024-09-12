@@ -1,5 +1,38 @@
 import { generateCodeChallenge, generateCodeVerifier } from "../challenge"
 
+export async function fetchOAuthConfiguration(configuration_endpoint: string) {
+
+    const result = await fetch(configuration_endpoint, { method: "GET" })
+    const data = await result.json()
+
+    const { 
+        token_endpoint,
+        authorization_endpoint,
+        userinfo_endpoint,
+        end_session_endpoint, 
+        device_authorization_endpoint,
+        introspection_endpoint,
+        revocation_endpoint, 
+        jwks_uri, 
+    } = data
+
+    if (typeof token_endpoint != "string") throw new Error(`"token_endpoint" did not exist in the configuration endpoint.`);
+    if (typeof authorization_endpoint != "string") throw new Error(`"authorization_endpoint" did not exist in the configuration endpoint.`);
+
+    return {
+        token_endpoint,
+        authorization_endpoint,
+        userinfo_endpoint,
+        end_session_endpoint, 
+        device_authorization_endpoint,
+        introspection_endpoint,
+        revocation_endpoint, 
+        jwks_uri,
+    }
+}
+
+export const USERINFO_ENDPOINT_KEY = "oauth-user-information-endpoint-key"
+
 /** 
  * Creates an OAuth Client.
  * 
@@ -59,7 +92,7 @@ export type CreateOAuthClientOptions = {
     /**
      * The scope privilegies to give the user.
      */
-    scopes: string[],
+    scopes: OAuthScope[],
 }
 
 /**
@@ -71,7 +104,7 @@ export class OAuthClient {
     readonly client_id: string
 
     /** The scope privilegies to give the user. */
-    readonly scopes: string[]
+    readonly scopes: OAuthScope[]
 
     /** The autorization endpoint for authorizing the user. */
     readonly authorization_endpoint: string
@@ -98,36 +131,40 @@ export class OAuthClient {
     private fetching_user_info: Promise<any | null> | null
 
     /** The key for retrieving the access token from local storage. */
-    readonly ACCESS_TOKEN_KEY: string
+    private readonly ACCESS_TOKEN_KEY_SUFFIX: string
 
     /** The key for retrieving the refresh token from local storage. */
-    readonly REFRESH_TOKEN_KEY: string
+    private readonly REFRESH_TOKEN_KEY_SUFFIX: string
 
     /** The key for retrieving the code verifier from local storage. */
     readonly CODE_VERIFIER_KEY: string
 
     /** The key for retrieving the token expiration time from local storage. */
-    readonly EXPIRATION_TIME_KEY: string
+    private readonly EXPIRATION_TIME_KEY_SUFFIX: string
 
-    private state_changed_callbacks: Set<(access_token: string | null) => void>
+    private state_changed_callbacks: Set<{
+        key: string,
+        cb: (access_token: string | null) => void
+    }>
     
     constructor(options: CreateOAuthClientOptions) {
 
-        this.client_id              = options.client_id
-        this.scopes                 = options.scopes
-        this.authorization_endpoint = options.authorization_endpoint
-        this.token_endpoint         = options.token_endpoint
-        this.introspect_endpoint    = options.introspect_endpoint ?? null
-        this.revoke_endpoint        = options.revoke_endpoint
-        this.logout_endpoint        = options.logout_endpoint
-        this.user_info_endpoint     = options.user_info_endpoint ?? null
-        this.user_info              = null
-        this.fetching_user_info     = null
+        this.client_id                      = options.client_id
+        this.scopes                         = options.scopes
+        this.authorization_endpoint         = options.authorization_endpoint
+        this.token_endpoint                 = options.token_endpoint
+        this.introspect_endpoint            = options.introspect_endpoint ?? null
+        this.revoke_endpoint                = options.revoke_endpoint
+        this.logout_endpoint                = options.logout_endpoint
+        this.user_info_endpoint             = options.user_info_endpoint ?? null
+        this.user_info                      = null
+        this.fetching_user_info             = null
 
-        this.ACCESS_TOKEN_KEY       = `${options.client_id}.OAuthAccessToken`
-        this.REFRESH_TOKEN_KEY      = `${options.client_id}.OAuthRefreshToken`
-        this.CODE_VERIFIER_KEY      = `${options.client_id}.OAuthCodeVerifier`
-        this.EXPIRATION_TIME_KEY    = `${options.client_id}.OAuthExpirationTime`
+        this.ACCESS_TOKEN_KEY_SUFFIX        = `${options.client_id}.OAuthAccessToken.`
+        this.REFRESH_TOKEN_KEY_SUFFIX       = `${options.client_id}.OAuthRefreshToken.`
+        this.EXPIRATION_TIME_KEY_SUFFIX     = `${options.client_id}.OAuthExpirationTime.`
+
+        this.CODE_VERIFIER_KEY              = `${options.client_id}.OAuthCodeVerifier.`
 
         this.state_changed_callbacks = new Set()
     }
@@ -152,7 +189,7 @@ export class OAuthClient {
         const { redirect_uri, prompt, state } = options
         const { client_id, scopes, authorization_endpoint } = this
 
-        const scope = scopes.join(" ")
+        const joined_scope = this.joinScopes(scopes)
 
         const code_verifier = generateCodeVerifier()
         const code_challenge = await generateCodeChallenge(code_verifier)
@@ -163,9 +200,9 @@ export class OAuthClient {
             client_id, 
             redirect_uri, 
             code_challenge,
-            scope,
             prompt,
             state,
+            scope: joined_scope,
             respose_mode: "query",
             response_type: "code",
             nonce: "12321321",
@@ -222,43 +259,48 @@ export class OAuthClient {
 
         if (!code_verifier) throw new Error("No code verifier was stored in local storage.")
 
-        const scope = scopes.join(" ")
+        scopes.forEach(async scope => {
 
-        const init: RequestInit = {
-            method: "POST",
-            headers: { "Content-Type": "application/x-www-form-urlencoded" },
-            body: new URLSearchParams({
-                client_id,
-                code_verifier,
-                code,
-                scope,
-                redirect_uri,
-                grant_type: "authorization_code",
-            }).toString()
-        }
+            const joined_scope = scope.permissions
+                .map(permission => `${scope.resource}${permission}`)
+                .join(" ")
 
-        const result = await fetch(token_endpoint, init)
-        const data = await result.json()
+            const { key } = scope
 
-        console.log(data)
+            const init: RequestInit = {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                body: new URLSearchParams({
+                    client_id,
+                    code_verifier,
+                    code,
+                    scope: joined_scope,
+                    redirect_uri,
+                    grant_type: "authorization_code",
+                }).toString()
+            }
 
-        if (result.status != 200) throw new Error(`${data.error} (${result.status}): ${data.error_description}`)
-        
-        const { access_token, refresh_token, expires_in } = data
+            const result = await fetch(token_endpoint, init)
+            const data = await result.json()
 
-        if (typeof access_token != "string") {
-            throw new Error(`'access_token' does not exists within the returned data.`)
-        }
+            if (result.status != 200) throw new Error(`${data.error} (${result.status}): ${data.error_description}`)
+            
+            const { access_token, refresh_token, expires_in } = data
 
-        if (typeof refresh_token != "string") {
-            throw new Error(`'refresh_token' does not exists within the returned data.`)
-        }
+            if (typeof access_token != "string") {
+                throw new Error(`'access_token' does not exists within the returned data.`)
+            }
 
-        if (typeof expires_in != "number") {
-            throw new Error(`'expires_in' does not exists within the returned data.`)
-        }
+            if (typeof refresh_token != "string") {
+                throw new Error(`'refresh_token' does not exists within the returned data.`)
+            }
 
-        this.setTokens({ access_token, refresh_token, expires_in })
+            if (typeof expires_in != "number") {
+                throw new Error(`'expires_in' does not exists within the returned data.`)
+            }
+
+            this.setTokens({ key, access_token, refresh_token, expires_in })
+        })
         
     }
 
@@ -276,15 +318,15 @@ export class OAuthClient {
      * const access_token = await client.getAccessToken()
      * ```
      */
-    async refreshAccessToken() {
+    async refreshAccessToken(key: string) {
         const { client_id, token_endpoint, scopes } = this
 
         const scope = scopes.join(" ")
 
-        const refresh_token = this.getRefreshToken()
+        const refresh_token = this.getRefreshToken(key)
 
         if (!refresh_token) {
-            this.clearTokens()
+            this.clearTokens(key)
             throw new Error("No refresh token was stored in local storage.")
         }
 
@@ -303,7 +345,7 @@ export class OAuthClient {
         const data = await result.json()
 
         if (result.status != 200) {
-            this.clearTokens()
+            this.clearTokens(key)
             throw new Error(`${data.error} (${result.status}): ${data.error_description}`)
         }
         
@@ -311,21 +353,21 @@ export class OAuthClient {
             const { access_token, refresh_token, expires_in } = data
 
             if (typeof access_token != "string") {
-                this.clearTokens()
+                this.clearTokens(key)
                 throw new Error(`'access_token' does not exists within the returned data.`)
             }
 
             if (typeof refresh_token != "string") {
-                this.clearTokens()
+                this.clearTokens(key)
                 throw new Error(`'refresh_token' does not exists within the returned data.`)
             }
 
             if (typeof expires_in != "number") {
-                this.clearTokens()
+                this.clearTokens(key)
                 throw new Error(`'expires_in' does not exists within the returned data.`)
             }
 
-            this.setTokens({ access_token, refresh_token, expires_in })
+            this.setTokens({ key, access_token, refresh_token, expires_in })
         }
     }
 
@@ -336,17 +378,22 @@ export class OAuthClient {
      * @param options Options.
      */
     async logout(options: LogoutOptions = { return_to: undefined }): Promise<void> {
-        const { logout_endpoint } = this
+        const { logout_endpoint, scopes } = this
         const { return_to } = options;
 
-        const access_token = await this.getAccessToken()
-        const refresh_token = this.getRefreshToken()
+        scopes.forEach(async scope => {
 
-        if (access_token) this.revokeToken(access_token, "access_token")
-        if (refresh_token) this.revokeToken(refresh_token, "refresh_token")
+            const { key } = scope
 
-        this.clearTokens()
-        this.clearCodeVerifier()
+            const access_token = await this.getAccessToken(key)
+            const refresh_token = this.getRefreshToken(key)
+    
+            if (access_token) this.revokeToken(access_token, "access_token")
+            if (refresh_token) this.revokeToken(refresh_token, "refresh_token")
+    
+            this.clearTokens(key)
+            this.clearCodeVerifier()
+        })
 
         const redirect_uri = return_to ?? (() => {
             const { origin, pathname } = window.location
@@ -379,8 +426,9 @@ export class OAuthClient {
      * Checks whether the user is authorized or not.
      * @returns `true` if authorized; `false` if not authorized.
      */
-    isAuthorized() {
-        const { ACCESS_TOKEN_KEY } = this
+    isAuthorized(key: string) {
+        const ACCESS_TOKEN_KEY = this.getAccessTokenKey(key)
+
         return localStorage.getItem(ACCESS_TOKEN_KEY) ? true : false
     }
 
@@ -406,11 +454,17 @@ export class OAuthClient {
     }
 
     private async fetchUserInfo<T>(): Promise<T | null> {
-        const { user_info_endpoint } = this
+        const { user_info_endpoint, scopes } = this
+        
+        const user_info_key = scopes
+            .find(scope => scope.key == USERINFO_ENDPOINT_KEY)
+            ?.key
+
+        if (!user_info_key) throw new Error("No scope was added for fetching user information.")
 
         if (!user_info_endpoint) throw new Error("The user information endpoint has not been specified.")
 
-        const access_token = await this.getAccessToken()
+        const access_token = await this.getAccessToken(user_info_key)
 
         if (!access_token) return null
 
@@ -419,15 +473,10 @@ export class OAuthClient {
             headers: { Authorization: access_token },
         }
 
-        // console.log({ user_info_endpoint, init })
-
-        // return null
-
         const result = await fetch(user_info_endpoint, init)
         const data = await result.json()
 
         if (result.status != 200) {
-            console.log(data)
             throw new Error(`${data.error} (${result.status}): ${data.error_description}`)
         }
 
@@ -437,12 +486,12 @@ export class OAuthClient {
     /**
      * Introspects the access token. If `null` is returned, no access token is stored in local storage.
      */
-    async introspectToken(): Promise<TokenIntrospection> {
+    async introspectToken(key: string): Promise<TokenIntrospection> {
         const { client_id, introspect_endpoint } = this
 
         if (!introspect_endpoint) throw new Error("The token introspection endpoint has not been specified.")
 
-        const access_token = await this.getAccessToken()
+        const access_token = await this.getAccessToken(key)
 
         if (!access_token) return null
 
@@ -468,9 +517,12 @@ export class OAuthClient {
 
     /* STATE HANDLING METHODS */
 
-    private setTokens(params: { access_token: string, refresh_token: string, expires_in: number }): void {
-        const { ACCESS_TOKEN_KEY, REFRESH_TOKEN_KEY, EXPIRATION_TIME_KEY } = this
-        const { access_token, refresh_token, expires_in } = params
+    private setTokens(params: { key: string, access_token: string, refresh_token: string, expires_in: number }): void {
+        const { key, access_token, refresh_token, expires_in } = params
+
+        const ACCESS_TOKEN_KEY = this.getAccessTokenKey(key)
+        const REFRESH_TOKEN_KEY = this.getRefreshTokenKey(key)
+        const EXPIRATION_TIME_KEY = this.getExpirationTimeKey(key)
 
         const expiration_time = Date.now() + expires_in * 1000
 
@@ -481,12 +533,14 @@ export class OAuthClient {
         this.user_info = null
         this.fetching_user_info = null
 
-        this.notifyStateChanged()
+        this.notifyStateChanged(key)
     }
 
-    private clearTokens() {
-        const { ACCESS_TOKEN_KEY, REFRESH_TOKEN_KEY, EXPIRATION_TIME_KEY } = this
-        
+    private clearTokens(key: string) {
+        const ACCESS_TOKEN_KEY = this.getAccessTokenKey(key)
+        const REFRESH_TOKEN_KEY = this.getRefreshTokenKey(key)
+        const EXPIRATION_TIME_KEY = this.getExpirationTimeKey(key)
+
         localStorage.removeItem(ACCESS_TOKEN_KEY);
         localStorage.removeItem(REFRESH_TOKEN_KEY);
         localStorage.removeItem(EXPIRATION_TIME_KEY);
@@ -494,7 +548,7 @@ export class OAuthClient {
         this.user_info = null
         this.fetching_user_info = null
 
-        this.notifyStateChanged()
+        this.notifyStateChanged(key)
     }
 
     /**
@@ -504,14 +558,15 @@ export class OAuthClient {
      * - If succeeds:   A new access token will be returned.
      * - If fails:      The method will throw an error, and all tokens and code verifiers will be removed from local storage.
      */
-    public async getAccessToken(options: GetAccessTokenOptions = { refresh_if_expired: true }): Promise<string | null> {
-        const { ACCESS_TOKEN_KEY } = this
+    public async getAccessToken(key: string, options: GetAccessTokenOptions = { refresh_if_expired: true }): Promise<string | null> {
         const { refresh_if_expired } = options
+
+        const ACCESS_TOKEN_KEY = this.getAccessTokenKey(key)
 
         if (!localStorage.getItem(ACCESS_TOKEN_KEY)) return null
 
-        if (refresh_if_expired && this.tokenIsExpired()) {
-            await this.refreshAccessToken()
+        if (refresh_if_expired && this.tokenIsExpired(key)) {
+            await this.refreshAccessToken(key)
         }
 
         const access_token = localStorage.getItem(ACCESS_TOKEN_KEY);
@@ -519,8 +574,10 @@ export class OAuthClient {
         return access_token
     }
 
-    private getRefreshToken(): string | null {
-        const { REFRESH_TOKEN_KEY } = this
+    private getRefreshToken(key: string): string | null {
+        const { REFRESH_TOKEN_KEY_SUFFIX } = this
+
+        const REFRESH_TOKEN_KEY = this.getRefreshTokenKey(key)
 
         return localStorage.getItem(REFRESH_TOKEN_KEY);
     }
@@ -553,8 +610,8 @@ export class OAuthClient {
      * Determines whether the `access_token` is expired or still valid.
      * @returns `true` if expired; `false` if still valid.
      */
-    tokenIsExpired() {
-        const { EXPIRATION_TIME_KEY } = this
+    tokenIsExpired(key: string) {
+        const EXPIRATION_TIME_KEY = this.getExpirationTimeKey(key)
         
         const expiration_time = Number(localStorage.getItem(EXPIRATION_TIME_KEY));
         const current_time = Date.now()
@@ -568,27 +625,64 @@ export class OAuthClient {
      * Subscribe to the authentication status of the client. Specifically, the given callback function is called when the `access_token` is either added- or removed from local storage via internal class-methods. The subscription runs once on initialization.
      * @returns an unsubscribe function.
      */
-    subscribe(cb: (access_token: string | null) => void): UnsubscribeToAuthState {
-        const { ACCESS_TOKEN_KEY } = this
+    subscribe(key: string, cb: (access_token: string | null) => void): UnsubscribeToAuthState {
+
+        const ACCESS_TOKEN_KEY = this.getAccessTokenKey(key)
         
         const access_token = localStorage.getItem(ACCESS_TOKEN_KEY)
 
-        this.state_changed_callbacks.add(cb)
+        const state_changed_callback = { key, cb }
+
+        this.state_changed_callbacks.add(state_changed_callback)
 
         cb(access_token) // Call function on initialization.
 
         return () => {
-            this.state_changed_callbacks.delete(cb)
+            this.state_changed_callbacks.delete(state_changed_callback)
         }
     }
 
-    private notifyStateChanged() {
-        const { ACCESS_TOKEN_KEY } = this
+    private notifyStateChanged(key: string) {
+
+        const ACCESS_TOKEN_KEY = this.getAccessTokenKey(key)
         
         const access_token = localStorage.getItem(ACCESS_TOKEN_KEY)
 
-        this.state_changed_callbacks.forEach(cb => cb(access_token))
+        this.state_changed_callbacks.forEach(({ key: callback_key, cb }) => {
+            if (callback_key == key) cb(access_token)
+        })
     }
+
+    private joinScopes(scopes: OAuthScope[]): string {
+        return scopes
+            .flatMap(scope => scope.permissions.map(permission => `${scope.resource}${permission}`))
+            .join(" ")
+    }
+
+    getAccessTokenKey(key: string) {
+        const { ACCESS_TOKEN_KEY_SUFFIX } = this
+
+        return `${ACCESS_TOKEN_KEY_SUFFIX}${key}`
+
+    }
+
+    getRefreshTokenKey(key: string) {
+        const { REFRESH_TOKEN_KEY_SUFFIX } = this
+        
+        return `${REFRESH_TOKEN_KEY_SUFFIX}${key}`
+    }
+
+    getExpirationTimeKey(key: string) {
+        const { EXPIRATION_TIME_KEY_SUFFIX } = this
+        
+        return `${EXPIRATION_TIME_KEY_SUFFIX}${key}`
+    }
+}
+
+export type OAuthScope = {
+    key: string,
+    resource: string,
+    permissions: string[],
 }
 
 /**

@@ -1,6 +1,8 @@
 export { 
     createOAuthClient,
-    type OAuthClient,
+    OAuthClient,
+    USERINFO_ENDPOINT_KEY,
+    type OAuthScope,
     type CreateOAuthClientOptions, 
     type LoginWithRedirectOption,
     type HandleRedirectCallbackOptions,

@@ -1,7 +1,7 @@
 <script lang="ts">
-    import { type OAuthClient, createOAuthClient } from '$lib'
+    import { OAuthClient, USERINFO_ENDPOINT_KEY, createOAuthClient, type OAuthScope } from '$lib'
     import { PUBLIC_APP_ID } from '$env/static/public';
-    import { setContextOAuthClient } from '$lib/context'
+    import { BUILDING_COMPONENT_DATABASE_KEY, setContextOAuthClient } from '$lib/context'
     import { type AutodeskScope, type AutodeskUserInformation } from '$lib/autodesk'
  
     const { children } = $props();
@@ -9,10 +9,17 @@
     let is_authorized = $state<boolean>(false)
     let user_info = $state<AutodeskUserInformation|null>(null);
 
-    const scopes: string[] = [
-        "api://77c68517-7444-4ac4-a135-ab81cd4615b6/data.read",
-        "https://graph.microsoft.com/User.Read",
-        "api://77c68517-7444-4ac4-a135-ab81cd4615b6/data.write",
+    const scopes: OAuthScope[] = [
+        // {
+        //     key: BUILDING_COMPONENT_DATABASE_KEY,
+        //     resource: "api://77c68517-7444-4ac4-a135-ab81cd4615b6/",
+        //     permissions: ["data.read", "data.write"]
+        // },
+        {
+            key: USERINFO_ENDPOINT_KEY,
+            resource: "https://graph.microsoft.com/",
+            permissions: ["User.Read"]
+        },
     ]
 
     const SERVER_URL = "https://login.microsoftonline.com/92d2ad85-14cf-47ac-be4b-93ed3d312f25/oauth2/v2.0"
@@ -24,12 +31,12 @@
         logout_endpoint: `${SERVER_URL}/logout`,
         revoke_endpoint: `${SERVER_URL}/revoke`,
         introspect_endpoint: `${SERVER_URL}/introspect`,
-        user_info_endpoint: "https://api.userprofile.autodesk.com/userinfo",
+        user_info_endpoint: "https://graph.microsoft.com/oidc/userinfo",
         scopes
     })
 
-    client.subscribe(async access_token => {
-        is_authorized = client.isAuthorized()
+    client.subscribe(USERINFO_ENDPOINT_KEY, async access_token => {
+        is_authorized = client.isAuthorized(USERINFO_ENDPOINT_KEY)
         user_info = await client.getUserInfo<AutodeskUserInformation>()
     })
 

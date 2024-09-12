@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { USERINFO_ENDPOINT_KEY } from '$lib';
     import { type AutodeskUserInformation } from '$lib/autodesk'
     import { getContextOAuthClient } from "$lib/context";
 
@@ -12,16 +13,16 @@
     let user_info = $state<AutodeskUserInformation|null>(null);
     let show_user_info = $state<boolean>(false)
 
-    client.subscribe(async token => {
-        is_authorized = client.isAuthorized()
+    client.subscribe(USERINFO_ENDPOINT_KEY, async token => {
+        is_authorized = client.isAuthorized(USERINFO_ENDPOINT_KEY)
         access_token = token
-        refresh_token = localStorage.getItem(client.REFRESH_TOKEN_KEY)
+        // refresh_token = localStorage.getItem(client.REFRESH_TOKEN_KEY)
         user_info = await client.getUserInfo()
     })
 
     async function refreshAccessToken() {
         try {
-            await client.refreshAccessToken();
+            await client.refreshAccessToken(USERINFO_ENDPOINT_KEY);
         } catch(e) {
             console.log(e)
         }
@@ -29,7 +30,7 @@
 
     async function introspectToken() {
         try {
-            const introspect = await client.introspectToken()
+            const introspect = await client.introspectToken(USERINFO_ENDPOINT_KEY)
             console.log(introspect)
         } catch(e) {
             console.log(e)

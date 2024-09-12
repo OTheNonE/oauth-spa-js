@@ -10,3 +10,5 @@ export function setContextOAuthClient(client: OAuthClient) {
 export function getContextOAuthClient(): OAuthClient {
     return getContext(client_context_key)
 }
+
+export const BUILDING_COMPONENT_DATABASE_KEY = "building-component-database"
