@@ -28,6 +28,7 @@
 	},
 	"scripts": {
 		"dev": "vite dev",
+		"host": "vite dev --host",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
 		"test": "test",

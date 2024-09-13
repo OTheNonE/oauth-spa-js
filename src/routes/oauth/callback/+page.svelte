@@ -10,7 +10,7 @@
         const { origin, pathname } = $page.url
         const redirect_uri = `${origin}${pathname}`
         
-        const state = $page.url.searchParams.get("state")
+        const state = $page.url.searchParams.get(client.STATE_SEARCH_PARAMETER)
     
         try {
             await client.handleRedirectCallback({ redirect_uri })

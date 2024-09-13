@@ -1,28 +1,38 @@
 <script lang="ts">
-    import { USERINFO_ENDPOINT_KEY } from '$lib';
     import { type AutodeskUserInformation } from '$lib/autodesk'
     import { getContextOAuthClient } from "$lib/context";
 
     const client = getContextOAuthClient()
 
+    let selected_resource_key = $state<string>(client.scopes[0].key)
+
     let is_authorized = $state<boolean>(false);
     let access_token = $state<string|null>(null);
+
     let refresh_token = $state<string|null>(null);
+
     let view_access_token = $state<boolean>(false);
     let view_refresh_token = $state<boolean>(false);
+
     let user_info = $state<AutodeskUserInformation|null>(null);
     let show_user_info = $state<boolean>(false)
 
-    client.subscribe(USERINFO_ENDPOINT_KEY, async token => {
-        is_authorized = client.isAuthorized(USERINFO_ENDPOINT_KEY)
-        access_token = token
-        // refresh_token = localStorage.getItem(client.REFRESH_TOKEN_KEY)
-        user_info = await client.getUserInfo()
+    $effect(() => {
+
+        const unsubscibe = client.subscribe(selected_resource_key, async token => {
+            is_authorized = client.isAuthorized(selected_resource_key)
+            access_token = token
+            refresh_token = localStorage.getItem(client.REFRESH_TOKEN_KEY)
+            user_info = await client.getUserInfo()
+        })
+
+        return () => unsubscibe()
+
     })
 
     async function refreshAccessToken() {
         try {
-            await client.refreshAccessToken(USERINFO_ENDPOINT_KEY);
+            await client.refreshAccessToken(selected_resource_key);
         } catch(e) {
             console.log(e)
         }
@@ -30,7 +40,7 @@
 
     async function introspectToken() {
         try {
-            const introspect = await client.introspectToken(USERINFO_ENDPOINT_KEY)
+            const introspect = await client.introspectToken(selected_resource_key)
             console.log(introspect)
         } catch(e) {
             console.log(e)
@@ -41,6 +51,12 @@
 
 <main>
     <h1> Home </h1>
+
+    <select bind:value={selected_resource_key}>
+        {#each client.scopes as scope}
+            <option value={scope.key}> {scope.key} ({scope.resource}) </option>
+        {/each}
+    </select>
 
     <div>
         {#if is_authorized}

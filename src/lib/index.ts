@@ -1,9 +1,10 @@
 export { 
-    createOAuthClient,
-    OAuthClient,
     USERINFO_ENDPOINT_KEY,
-    type OAuthScope,
+    createOAuthClient,
     type CreateOAuthClientOptions, 
+    type OAuthScope,
+    OAuthClient,
+    fetchOAuthConfiguration,
     type LoginWithRedirectOption,
     type HandleRedirectCallbackOptions,
     type LogoutOptions,

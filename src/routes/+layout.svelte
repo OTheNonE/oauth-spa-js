@@ -1,38 +1,36 @@
 <script lang="ts">
+    import { PUBLIC_APP_ID, PUBLIC_BCD_API_DOMAIN, PUBLIC_MS_DOMAIN } from '$env/static/public';
     import { OAuthClient, USERINFO_ENDPOINT_KEY, createOAuthClient, type OAuthScope } from '$lib'
-    import { PUBLIC_APP_ID } from '$env/static/public';
     import { BUILDING_COMPONENT_DATABASE_KEY, setContextOAuthClient } from '$lib/context'
-    import { type AutodeskScope, type AutodeskUserInformation } from '$lib/autodesk'
+    import { type AutodeskUserInformation } from '$lib/autodesk'
  
     const { children } = $props();
 
     let is_authorized = $state<boolean>(false)
-    let user_info = $state<AutodeskUserInformation|null>(null);
+    let user_info = $state<{ [key: string]: any }|null>(null);
 
     const scopes: OAuthScope[] = [
-        // {
-        //     key: BUILDING_COMPONENT_DATABASE_KEY,
-        //     resource: "api://77c68517-7444-4ac4-a135-ab81cd4615b6/",
-        //     permissions: ["data.read", "data.write"]
-        // },
         {
             key: USERINFO_ENDPOINT_KEY,
             resource: "https://graph.microsoft.com/",
             permissions: ["User.Read"]
         },
+        {
+            key: BUILDING_COMPONENT_DATABASE_KEY,
+            resource: PUBLIC_BCD_API_DOMAIN,
+            permissions: ["data.read", "data.write"]
+        },
     ]
-
-    const SERVER_URL = "https://login.microsoftonline.com/92d2ad85-14cf-47ac-be4b-93ed3d312f25/oauth2/v2.0"
 
     const client: OAuthClient = createOAuthClient({
         client_id: PUBLIC_APP_ID,
-        authorization_endpoint: `${SERVER_URL}/authorize`,
-        token_endpoint: `${SERVER_URL}/token`,
-        logout_endpoint: `${SERVER_URL}/logout`,
-        revoke_endpoint: `${SERVER_URL}/revoke`,
-        introspect_endpoint: `${SERVER_URL}/introspect`,
+        scopes,
+        authorization_endpoint: `${PUBLIC_MS_DOMAIN}/authorize`,
+        token_endpoint: `${PUBLIC_MS_DOMAIN}/token`,
+        logout_endpoint: `${PUBLIC_MS_DOMAIN}/logout`,
+        revoke_endpoint: `${PUBLIC_MS_DOMAIN}/revoke`,
+        introspect_endpoint: `${PUBLIC_MS_DOMAIN}/introspect`,
         user_info_endpoint: "https://graph.microsoft.com/oidc/userinfo",
-        scopes
     })
 
     client.subscribe(USERINFO_ENDPOINT_KEY, async access_token => {
@@ -42,7 +40,7 @@
 
     setContextOAuthClient(client)
 
-    async function login() {
+    const login = async () => {
         const redirect_uri = `${window.location.origin}/oauth/callback`
         const state = window.location.href
         await client.loginWithRedirect({ redirect_uri, state })
@@ -76,7 +74,7 @@
         {#if user_info}
             <div> 
                 Hello {user_info.name}
-                <img src={user_info.picture} alt="user-profile" class="user-profile">
+                <!-- <img src={user_info.picture} alt="user-profile" class="user-profile"> -->
             </div>
         {/if}
         <button disabled={is_authorized} onclick={login}> Login </button>

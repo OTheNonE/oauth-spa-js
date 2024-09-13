@@ -1,36 +1,5 @@
 import { generateCodeChallenge, generateCodeVerifier } from "../challenge"
 
-export async function fetchOAuthConfiguration(configuration_endpoint: string) {
-
-    const result = await fetch(configuration_endpoint, { method: "GET" })
-    const data = await result.json()
-
-    const { 
-        token_endpoint,
-        authorization_endpoint,
-        userinfo_endpoint,
-        end_session_endpoint, 
-        device_authorization_endpoint,
-        introspection_endpoint,
-        revocation_endpoint, 
-        jwks_uri, 
-    } = data
-
-    if (typeof token_endpoint != "string") throw new Error(`"token_endpoint" did not exist in the configuration endpoint.`);
-    if (typeof authorization_endpoint != "string") throw new Error(`"authorization_endpoint" did not exist in the configuration endpoint.`);
-
-    return {
-        token_endpoint,
-        authorization_endpoint,
-        userinfo_endpoint,
-        end_session_endpoint, 
-        device_authorization_endpoint,
-        introspection_endpoint,
-        revocation_endpoint, 
-        jwks_uri,
-    }
-}
-
 export const USERINFO_ENDPOINT_KEY = "oauth-user-information-endpoint-key"
 
 /** 
@@ -95,6 +64,12 @@ export type CreateOAuthClientOptions = {
     scopes: OAuthScope[],
 }
 
+export type OAuthScope = {
+    key: string,
+    resource: string,
+    permissions: string[],
+}
+
 /**
  * The OAuth Authentication Client.
  */
@@ -130,17 +105,17 @@ export class OAuthClient {
     /** Fetching user information. If `null`, then no fetching is in progress. If `Promise<null>`, then `null` was returned from the fetch, and the promise is not cleaned up. */
     private fetching_user_info: Promise<any | null> | null
 
-    /** The key for retrieving the access token from local storage. */
-    private readonly ACCESS_TOKEN_KEY_SUFFIX: string
-
-    /** The key for retrieving the refresh token from local storage. */
-    private readonly REFRESH_TOKEN_KEY_SUFFIX: string
-
     /** The key for retrieving the code verifier from local storage. */
     readonly CODE_VERIFIER_KEY: string
 
-    /** The key for retrieving the token expiration time from local storage. */
-    private readonly EXPIRATION_TIME_KEY_SUFFIX: string
+    /** The key for retrieving the refresh token from local storage. */
+    readonly REFRESH_TOKEN_KEY: string
+
+    /** The search parameter for extracting the authorization code parameter from the return url. */
+    readonly CODE_SEARCH_PARAMETER: string
+
+    /** The search parameter for extracting the state parameter from the return url. */
+    readonly STATE_SEARCH_PARAMETER: string
 
     private state_changed_callbacks: Set<{
         key: string,
@@ -148,7 +123,6 @@ export class OAuthClient {
     }>
     
     constructor(options: CreateOAuthClientOptions) {
-
         this.client_id                      = options.client_id
         this.scopes                         = options.scopes
         this.authorization_endpoint         = options.authorization_endpoint
@@ -160,11 +134,11 @@ export class OAuthClient {
         this.user_info                      = null
         this.fetching_user_info             = null
 
-        this.ACCESS_TOKEN_KEY_SUFFIX        = `${options.client_id}.OAuthAccessToken.`
-        this.REFRESH_TOKEN_KEY_SUFFIX       = `${options.client_id}.OAuthRefreshToken.`
-        this.EXPIRATION_TIME_KEY_SUFFIX     = `${options.client_id}.OAuthExpirationTime.`
+        this.REFRESH_TOKEN_KEY              = `${options.client_id}.OAuthRefreshToken`
+        this.CODE_VERIFIER_KEY              = `${options.client_id}.OAuthCodeVerifier`
 
-        this.CODE_VERIFIER_KEY              = `${options.client_id}.OAuthCodeVerifier.`
+        this.CODE_SEARCH_PARAMETER          = "code"
+        this.STATE_SEARCH_PARAMETER         = "state"
 
         this.state_changed_callbacks = new Set()
     }
@@ -196,7 +170,7 @@ export class OAuthClient {
 
         const url = new URL(authorization_endpoint)
 
-        const searchParams = { 
+        const searchParams = {
             client_id, 
             redirect_uri, 
             code_challenge,
@@ -216,8 +190,6 @@ export class OAuthClient {
 
         // Is it correct that the code verifier is supposed to be the code challenge?
         this.setCodeVerifier(code_challenge)
-
-        console.log(url.toString())
 
         window.location.href = url.toString()
     }
@@ -248,60 +220,72 @@ export class OAuthClient {
      * ```
      */
     async handleRedirectCallback(options: HandleRedirectCallbackOptions): Promise<void> {
-        const { redirect_uri } = options
-        const { client_id, token_endpoint, scopes } = this
+        const { scopes } = this
 
-        const code = this.getCodeFromSearchParams()
+        const [ first_scope, ...other_scopes ] = scopes
+
+        // The first token is obtained from the autorization code received from the authentication flow.
+        await this.fetchTokensFromAuthorizationCode(first_scope, options)
+
+        // All other tokens are received from the refresh token.
+        other_scopes.forEach(async scope => await this.refreshAccessToken(scope.key))
+    }
+
+    /**
+     * Fetches an `access_token` and a `refresh_token` from a successfull auth flow and stores the tokens in local storage. 
+     */
+    private async fetchTokensFromAuthorizationCode(scope: OAuthScope, options: HandleRedirectCallbackOptions) {
+        const { client_id, token_endpoint, CODE_SEARCH_PARAMETER } = this
+        const { redirect_uri } = options
+        const { key } = scope
+
+        const code = this.getCodeFromSearchParams(CODE_SEARCH_PARAMETER)
         const code_verifier = this.getCodeVerifier()
         this.clearCodeVerifier()
 
         if (!code) throw new Error("No code was found from the callback url.")
-
         if (!code_verifier) throw new Error("No code verifier was stored in local storage.")
 
-        scopes.forEach(async scope => {
+        const joined_scope = this.joinPermissions(scope)
 
-            const joined_scope = scope.permissions
-                .map(permission => `${scope.resource}${permission}`)
-                .join(" ")
+        const init: RequestInit = {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: new URLSearchParams({
+                client_id,
+                code_verifier,
+                code,
+                redirect_uri,
+                scope: joined_scope,
+                grant_type: "authorization_code",
+            }).toString()
+        }
 
-            const { key } = scope
+        const result = await fetch(token_endpoint, init)
+        const data = await result.json()
 
-            const init: RequestInit = {
-                method: "POST",
-                headers: { "Content-Type": "application/x-www-form-urlencoded" },
-                body: new URLSearchParams({
-                    client_id,
-                    code_verifier,
-                    code,
-                    scope: joined_scope,
-                    redirect_uri,
-                    grant_type: "authorization_code",
-                }).toString()
-            }
+        if (result.status != 200) throw new Error(`${data.error} (${result.status}): ${data.error_description}`)
 
-            const result = await fetch(token_endpoint, init)
-            const data = await result.json()
+        const { 
+            access_token, expires_in, 
+            ext_expires_in, refresh_token, 
+            scope: returned_scope, token_type 
+        } = data
 
-            if (result.status != 200) throw new Error(`${data.error} (${result.status}): ${data.error_description}`)
-            
-            const { access_token, refresh_token, expires_in } = data
+        if (typeof access_token != "string") {
+            throw new Error(`'access_token' does not exists within the returned data.`)
+        }
 
-            if (typeof access_token != "string") {
-                throw new Error(`'access_token' does not exists within the returned data.`)
-            }
+        if (typeof expires_in != "number") {
+            throw new Error(`'expires_in' does not exists within the returned data.`)
+        }
 
-            if (typeof refresh_token != "string") {
-                throw new Error(`'refresh_token' does not exists within the returned data.`)
-            }
+        if (typeof refresh_token != "string") {
+            throw new Error(`'refresh_token' does not exists within the returned data.`)
+        }
 
-            if (typeof expires_in != "number") {
-                throw new Error(`'expires_in' does not exists within the returned data.`)
-            }
-
-            this.setTokens({ key, access_token, refresh_token, expires_in })
-        })
-        
+        this.setAccessToken(key, { access_token, expires_in })
+        this.setRefreshToken(refresh_token)
     }
 
     /**
@@ -321,12 +305,15 @@ export class OAuthClient {
     async refreshAccessToken(key: string) {
         const { client_id, token_endpoint, scopes } = this
 
-        const scope = scopes.join(" ")
+        const scope = scopes.find(scope => scope.key == key)
 
-        const refresh_token = this.getRefreshToken(key)
+        if (!scope) throw new Error(`There exists no scope for the key "${key}".`)
+
+        const joined_scope = this.joinPermissions(scope)
+
+        const refresh_token = this.getRefreshToken()
 
         if (!refresh_token) {
-            this.clearTokens(key)
             throw new Error("No refresh token was stored in local storage.")
         }
 
@@ -336,7 +323,7 @@ export class OAuthClient {
             body: new URLSearchParams({
                 client_id,
                 refresh_token,
-                scope,
+                scope: joined_scope,
                 grant_type: "refresh_token",
             }).toString()
         }
@@ -345,7 +332,7 @@ export class OAuthClient {
         const data = await result.json()
 
         if (result.status != 200) {
-            this.clearTokens(key)
+            this.clearAccessToken(key)
             throw new Error(`${data.error} (${result.status}): ${data.error_description}`)
         }
         
@@ -353,21 +340,19 @@ export class OAuthClient {
             const { access_token, refresh_token, expires_in } = data
 
             if (typeof access_token != "string") {
-                this.clearTokens(key)
                 throw new Error(`'access_token' does not exists within the returned data.`)
             }
 
             if (typeof refresh_token != "string") {
-                this.clearTokens(key)
                 throw new Error(`'refresh_token' does not exists within the returned data.`)
             }
 
             if (typeof expires_in != "number") {
-                this.clearTokens(key)
                 throw new Error(`'expires_in' does not exists within the returned data.`)
             }
 
-            this.setTokens({ key, access_token, refresh_token, expires_in })
+            this.setAccessToken(key, { access_token, expires_in })
+            this.setRefreshToken(refresh_token)
         }
     }
 
@@ -381,19 +366,17 @@ export class OAuthClient {
         const { logout_endpoint, scopes } = this
         const { return_to } = options;
 
+        const refresh_token = this.getRefreshToken()
+        if (refresh_token) this.revokeToken(refresh_token, "refresh_token")
+        this.clearRefreshToken()
+
         scopes.forEach(async scope => {
-
-            const { key } = scope
-
-            const access_token = await this.getAccessToken(key)
-            const refresh_token = this.getRefreshToken(key)
-    
+            const access_token = await this.getAccessToken(scope.key)
             if (access_token) this.revokeToken(access_token, "access_token")
-            if (refresh_token) this.revokeToken(refresh_token, "refresh_token")
-    
-            this.clearTokens(key)
-            this.clearCodeVerifier()
+            this.clearAccessToken(scope.key)
         })
+
+        this.clearCodeVerifier()
 
         const redirect_uri = return_to ?? (() => {
             const { origin, pathname } = window.location
@@ -460,7 +443,7 @@ export class OAuthClient {
             .find(scope => scope.key == USERINFO_ENDPOINT_KEY)
             ?.key
 
-        if (!user_info_key) throw new Error("No scope was added for fetching user information.")
+        if (!user_info_key) throw new Error("No scope was found for fetching user information.")
 
         if (!user_info_endpoint) throw new Error("The user information endpoint has not been specified.")
 
@@ -499,8 +482,8 @@ export class OAuthClient {
             method: "POST",
             headers: { "Content-Type": "application/x-www-form-urlencoded" },
             body: new URLSearchParams({
-                token: access_token,
                 client_id,
+                token: access_token,
             }).toString()
         }
 
@@ -515,20 +498,20 @@ export class OAuthClient {
 
     }
 
+
+
     /* STATE HANDLING METHODS */
 
-    private setTokens(params: { key: string, access_token: string, refresh_token: string, expires_in: number }): void {
-        const { key, access_token, refresh_token, expires_in } = params
+    private setAccessToken(key: string, params: { access_token: string, expires_in: number }): void {
+        const { access_token, expires_in } = params
+
+        const expiration_time_ms = Date.now() + expires_in * 1000
 
         const ACCESS_TOKEN_KEY = this.getAccessTokenKey(key)
-        const REFRESH_TOKEN_KEY = this.getRefreshTokenKey(key)
         const EXPIRATION_TIME_KEY = this.getExpirationTimeKey(key)
 
-        const expiration_time = Date.now() + expires_in * 1000
-
         if (access_token) localStorage.setItem(ACCESS_TOKEN_KEY, access_token)
-        if (refresh_token) localStorage.setItem(REFRESH_TOKEN_KEY, refresh_token)
-        if (expiration_time) localStorage.setItem(EXPIRATION_TIME_KEY, expiration_time.toString())
+        if (expiration_time_ms) localStorage.setItem(EXPIRATION_TIME_KEY, expiration_time_ms.toString())
 
         this.user_info = null
         this.fetching_user_info = null
@@ -536,13 +519,11 @@ export class OAuthClient {
         this.notifyStateChanged(key)
     }
 
-    private clearTokens(key: string) {
+    private clearAccessToken(key: string) {
         const ACCESS_TOKEN_KEY = this.getAccessTokenKey(key)
-        const REFRESH_TOKEN_KEY = this.getRefreshTokenKey(key)
         const EXPIRATION_TIME_KEY = this.getExpirationTimeKey(key)
 
         localStorage.removeItem(ACCESS_TOKEN_KEY);
-        localStorage.removeItem(REFRESH_TOKEN_KEY);
         localStorage.removeItem(EXPIRATION_TIME_KEY);
 
         this.user_info = null
@@ -574,11 +555,19 @@ export class OAuthClient {
         return access_token
     }
 
-    private getRefreshToken(key: string): string | null {
-        const { REFRESH_TOKEN_KEY_SUFFIX } = this
+    private setRefreshToken(refresh_token: string) {
+        const { REFRESH_TOKEN_KEY } = this
+        if (refresh_token) localStorage.setItem(REFRESH_TOKEN_KEY, refresh_token)
 
-        const REFRESH_TOKEN_KEY = this.getRefreshTokenKey(key)
+    }
 
+    private clearRefreshToken() {
+        const { REFRESH_TOKEN_KEY } = this
+        localStorage.removeItem(REFRESH_TOKEN_KEY);
+    }
+
+    private getRefreshToken(): string | null {
+        const { REFRESH_TOKEN_KEY } = this
         return localStorage.getItem(REFRESH_TOKEN_KEY);
     }
 
@@ -590,20 +579,17 @@ export class OAuthClient {
 
     private clearCodeVerifier() {
         const { CODE_VERIFIER_KEY } = this
-
         localStorage.removeItem(CODE_VERIFIER_KEY);
     }
 
     private getCodeVerifier() {
         const { CODE_VERIFIER_KEY } = this
-
         return localStorage.getItem(CODE_VERIFIER_KEY)
     }
 
-    private getCodeFromSearchParams() {
+    private getCodeFromSearchParams(code_search_parameter: string) {
         const params = new URLSearchParams(window.location.search)
-        const code = params.get("code")
-        return code
+        return params.get(code_search_parameter)
     }
 
     /**
@@ -653,36 +639,66 @@ export class OAuthClient {
         })
     }
 
+    // UTILITY FUNCTIONS
+
     private joinScopes(scopes: OAuthScope[]): string {
         return scopes
-            .flatMap(scope => scope.permissions.map(permission => `${scope.resource}${permission}`))
+            .map(this.joinPermissions)
+            .join(" ")
+    }
+
+    private joinPermissions(scope: OAuthScope) {
+        return scope.permissions
+            .map(permission => `${scope.resource}${permission}`)
             .join(" ")
     }
 
     getAccessTokenKey(key: string) {
-        const { ACCESS_TOKEN_KEY_SUFFIX } = this
+        const { client_id } = this
 
-        return `${ACCESS_TOKEN_KEY_SUFFIX}${key}`
+        return `${client_id}.${key}.OAuthAccessToken`
 
-    }
-
-    getRefreshTokenKey(key: string) {
-        const { REFRESH_TOKEN_KEY_SUFFIX } = this
-        
-        return `${REFRESH_TOKEN_KEY_SUFFIX}${key}`
     }
 
     getExpirationTimeKey(key: string) {
-        const { EXPIRATION_TIME_KEY_SUFFIX } = this
+        const { client_id } = this
         
-        return `${EXPIRATION_TIME_KEY_SUFFIX}${key}`
+        return `${client_id}.${key}.OAuthExpirationTime`
     }
 }
 
-export type OAuthScope = {
-    key: string,
-    resource: string,
-    permissions: string[],
+export async function fetchOAuthConfiguration(configuration_endpoint: string) {
+
+    const result = await fetch(configuration_endpoint, { method: "GET" })
+    const data: unknown = await result.json()
+
+    if (typeof data != "object" || data == null) throw new Error(`typeof data was not of type "object".`)
+
+    if (!("token_endpoint" in data && typeof data.token_endpoint == "string")) throw new Error(`"token_endpoint" did not exist in the configuration endpoint.`);
+    if (!("authorization_endpoint" in data && typeof data.authorization_endpoint == "string")) throw new Error(`"authorization_endpoint" did not exist in the configuration endpoint.`);
+
+    const userinfo_endpoint             = "userinfo_endpoint"               in data && typeof data.userinfo_endpoint                == "string" ? data.userinfo_endpoint                : null
+    const end_session_endpoint          = "end_session_endpoint"            in data && typeof data.end_session_endpoint             == "string" ? data.end_session_endpoint             : null
+    const device_authorization_endpoint = "device_authorization_endpoint"   in data && typeof data.device_authorization_endpoint    == "string" ? data.device_authorization_endpoint    : null
+    const introspection_endpoint        = "introspection_endpoint"          in data && typeof data.introspection_endpoint           == "string" ? data.introspection_endpoint           : null
+    const revocation_endpoint           = "revocation_endpoint"             in data && typeof data.revocation_endpoint              == "string" ? data.revocation_endpoint              : null
+    const jwks_uri                      = "jwks_uri"                        in data && typeof data.jwks_uri                         == "string" ? data.jwks_uri                         : null
+
+    const { 
+        token_endpoint,
+        authorization_endpoint,
+    } = data
+
+    return {
+        token_endpoint,
+        authorization_endpoint,
+        userinfo_endpoint,
+        end_session_endpoint, 
+        device_authorization_endpoint,
+        introspection_endpoint,
+        revocation_endpoint, 
+        jwks_uri,
+    }
 }
 
 /**
