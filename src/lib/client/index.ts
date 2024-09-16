@@ -1,17 +1,37 @@
 import { generateCodeChallenge, generateCodeVerifier } from "../challenge"
 
-export const USERINFO_ENDPOINT_KEY = "oauth-user-information-endpoint-key"
+/**
+ * The default key for resources providing user information. Use this as key for the resource that provides user information.
+ */
+// export const USERINFO_ENDPOINT_KEY = "oauth-user-information-endpoint-key"
 
 /** 
  * Creates an OAuth Client.
  * 
  * Example:
  * ```ts
+ * const MICROSOFT_OAUTH_URL = `https://login.microsoftonline.com/${tenant}/oauth2/v2.0`
+ * 
+ * // Store this key globally
+ * const MICROSOFT_RESOURCE_IDENTIFIER = "https://graph.microsoft.com/"
+ * 
+ * const resources: OAuthResource[] = [
+ *     {
+ *         is_user_information_resource: true,
+ *         identifier: MICROSOFT_RESOURCE_IDENTIFIER,
+ *         scopes: ["User.Read"]
+ *     },
+ * ]
+ * 
  * const client: OAuthClient = createOAuthClient({
- *     clientId: PUBLIC_AEC_APP_ID,
- *     authorizationEndpoint: `${AUTH_SERVER_URL}/authorize`,
- *     tokenEndpoint: `${AUTH_SERVER_URL}/token`,
- *     scope: ["data:read"]
+ *     client_id: PUBLIC_APP_ID,
+ *     resources,
+ *     authorization_endpoint: `${PUBLIC_MS_DOMAIN}/authorize`,
+ *     token_endpoint: `${PUBLIC_MS_DOMAIN}/token`,
+ *     logout_endpoint: `${PUBLIC_MS_DOMAIN}/logout`,
+ *     revoke_endpoint: `${PUBLIC_MS_DOMAIN}/revoke`,
+ *     introspect_endpoint: `${PUBLIC_MS_DOMAIN}/introspect`,
+ *     user_info_endpoint: "https://graph.microsoft.com/oidc/userinfo",
  * })
  * ```
  */
@@ -23,63 +43,61 @@ export function createOAuthClient(options: CreateOAuthClientOptions): OAuthClien
  * @param options Options object.
  */
 export type CreateOAuthClientOptions = {
-    /**
-     * The Client ID of the application used.
-     */
+
+    /** The Client ID of the application used. */
     client_id: string,
     
-    /**
-     * The autorization endpoint for authorizing the user. (default: {}/authorize).
-     */
+    /** The scope privilegies to request from the authorization service. */
+    resources: OAuthResource[],
+    
+    /** The autorization endpoint for authorizing the user. */
     authorization_endpoint: string,
 
-    /**
-     * The token endpoint for optaining an access token.
-     */
+    /** The token endpoint for optaining an access token. */
     token_endpoint: string,
 
-    /** 
-     * The introspection endpoint for introspecting the access token.
-     */
+    /** The introspection endpoint for introspecting the access token. */
     introspect_endpoint?: string
 
-    /** 
-     * The revoke endpoint for revoking tokens.
-     */
-    revoke_endpoint: string
+    /** The revoke endpoint for revoking tokens. */
+    revoke_endpoint?: string
 
-    /** 
-     * The logout endpoint for logging out the user.
-     */
-    logout_endpoint: string
+    /** The logout endpoint for logging out the user. */
+    logout_endpoint?: string
 
-    /**
-     * The user information endpoint where information of the authorized user is fetched.
-     */
+    /** The user information endpoint where information of the authorized user is fetched. */
     user_info_endpoint?: string
-    
-    /**
-     * The scope privilegies to give the user.
-     */
-    scopes: OAuthScope[],
-}
-
-export type OAuthScope = {
-    key: string,
-    resource: string,
-    permissions: string[],
 }
 
 /**
- * The OAuth Authentication Client.
+ * OAuth Resource.
  */
+export type OAuthResource = {
+
+    // key: string,
+    is_user_information_resource?: true
+
+    /** Resource identifier (also used in local storage key). */
+    identifier: string,
+
+    /** Requested scopes. */
+    scopes: string[],
+}
+
+// export type OAuthUserInformationResource = {
+//     user_information_resource: true,
+//     identifier: string,
+//     scopes: string[],
+// }
+
+/** The OAuth Authentication Client. */
 export class OAuthClient {
     
     /** The Client ID of the application used. */
     readonly client_id: string
 
     /** The scope privilegies to give the user. */
-    readonly scopes: OAuthScope[]
+    readonly resources: OAuthResource[]
 
     /** The autorization endpoint for authorizing the user. */
     readonly authorization_endpoint: string
@@ -91,10 +109,10 @@ export class OAuthClient {
     readonly introspect_endpoint: string | null
 
     /** The revoke endpoint for revoking tokens. */
-    readonly revoke_endpoint: string
+    readonly revoke_endpoint: string | null
 
     /** The logout endpoint for logging out the user. */
-    readonly logout_endpoint: string
+    readonly logout_endpoint: string | null
  
     /** The user information endpoint for fetching information of the authorized user. If null, then no endpoint has been supplied. */
     readonly user_info_endpoint: string | null
@@ -124,12 +142,12 @@ export class OAuthClient {
     
     constructor(options: CreateOAuthClientOptions) {
         this.client_id                      = options.client_id
-        this.scopes                         = options.scopes
+        this.resources                      = options.resources
         this.authorization_endpoint         = options.authorization_endpoint
         this.token_endpoint                 = options.token_endpoint
         this.introspect_endpoint            = options.introspect_endpoint ?? null
-        this.revoke_endpoint                = options.revoke_endpoint
-        this.logout_endpoint                = options.logout_endpoint
+        this.revoke_endpoint                = options.revoke_endpoint ?? null
+        this.logout_endpoint                = options.logout_endpoint ?? null
         this.user_info_endpoint             = options.user_info_endpoint ?? null
         this.user_info                      = null
         this.fetching_user_info             = null
@@ -147,23 +165,23 @@ export class OAuthClient {
     /* FLOW METHODS */
 
     /**
-     * Redirects the user to authorization provider page.
-     * @param options Options.
-     * @param [additionalSearchParams] Additional SearchParams to add to the authorization request.
+     * Redirects the user to the providers authorization page.
      * 
      * Example:
      * ```ts
+     * // https://example.com/
      * async function login() {
      *     const redirect_uri = `${window.location.origin}/oauth/callback`
-     *     await client.loginWithRedirect({ redirect_uri })
+     *     const state = window.location.href
+     *     await client.loginWithRedirect({ redirect_uri, state })
      * }
      * ```
      */
     async loginWithRedirect(options: LoginWithRedirectOption): Promise<void> {
         const { redirect_uri, prompt, state } = options
-        const { client_id, scopes, authorization_endpoint } = this
+        const { client_id, resources, authorization_endpoint } = this
 
-        const joined_scope = this.joinScopes(scopes)
+        const joined_resources = this.joinResources(resources)
 
         const code_verifier = generateCodeVerifier()
         const code_challenge = await generateCodeChallenge(code_verifier)
@@ -176,7 +194,7 @@ export class OAuthClient {
             code_challenge,
             prompt,
             state,
-            scope: joined_scope,
+            scope: joined_resources,
             respose_mode: "query",
             response_type: "code",
             nonce: "12321321",
@@ -198,9 +216,10 @@ export class OAuthClient {
      * Handles the redirect from client.loginWithRedirect(). This function:
      * - takes the received code from the url
      * - the previously stored verification code from local storage
-     * - sends a "POST" request to the authentication server for an access token and a refresh token
-     * - and stores the returned access token and refresh token in local storage.
-     * @param options Options.
+     * - and fetches access tokens and refresh tokens from the resources by
+     *     - first using the authorization code, 
+     *     - and then using the refresh token,
+     * - and stores the tokens in local storage.
      * 
      * Example:
      * ```ts
@@ -220,24 +239,24 @@ export class OAuthClient {
      * ```
      */
     async handleRedirectCallback(options: HandleRedirectCallbackOptions): Promise<void> {
-        const { scopes } = this
+        const { resources } = this
 
-        const [ first_scope, ...other_scopes ] = scopes
+        const [ first_resource, ...other_resources ] = resources
 
         // The first token is obtained from the autorization code received from the authentication flow.
-        await this.fetchTokensFromAuthorizationCode(first_scope, options)
+        await this.fetchTokensFromAuthorizationCode(first_resource, options)
 
         // All other tokens are received from the refresh token.
-        other_scopes.forEach(async scope => await this.refreshAccessToken(scope.key))
+        other_resources.forEach(async resource => await this.refreshAccessToken(resource.identifier))
     }
 
     /**
      * Fetches an `access_token` and a `refresh_token` from a successfull auth flow and stores the tokens in local storage. 
      */
-    private async fetchTokensFromAuthorizationCode(scope: OAuthScope, options: HandleRedirectCallbackOptions) {
+    private async fetchTokensFromAuthorizationCode(resource: OAuthResource, options: HandleRedirectCallbackOptions) {
         const { client_id, token_endpoint, CODE_SEARCH_PARAMETER } = this
         const { redirect_uri } = options
-        const { key } = scope
+        const { identifier } = resource
 
         const code = this.getCodeFromSearchParams(CODE_SEARCH_PARAMETER)
         const code_verifier = this.getCodeVerifier()
@@ -246,7 +265,7 @@ export class OAuthClient {
         if (!code) throw new Error("No code was found from the callback url.")
         if (!code_verifier) throw new Error("No code verifier was stored in local storage.")
 
-        const joined_scope = this.joinPermissions(scope)
+        const joined_resources = this.joinScopes(resource)
 
         const init: RequestInit = {
             method: "POST",
@@ -256,7 +275,7 @@ export class OAuthClient {
                 code_verifier,
                 code,
                 redirect_uri,
-                scope: joined_scope,
+                scope: joined_resources,
                 grant_type: "authorization_code",
             }).toString()
         }
@@ -284,32 +303,32 @@ export class OAuthClient {
             throw new Error(`'refresh_token' does not exists within the returned data.`)
         }
 
-        this.setAccessToken(key, { access_token, expires_in })
+        this.setAccessToken(identifier, { access_token, expires_in })
         this.setRefreshToken(refresh_token)
     }
 
     /**
-     * Refreshes the access token using the refresh token. If failing, the method removes the access token and the refresh token from local storage.
+     * Refreshes the access token by using the refresh token.
+     * 
+     * @param {string} resource_identifier - The resource identifier. 
      * 
      * Example:
      * ```ts
      * try {
-     *     await client.refreshAccessToken();
+     *     access_token = await client.refreshAccessToken(MICROSOFT_RESOURCE_IDENTIFIER);
      * } catch(e) {
      *     // Handle error
      * }
-     * 
-     * const access_token = await client.getAccessToken()
      * ```
      */
-    async refreshAccessToken(key: string) {
-        const { client_id, token_endpoint, scopes } = this
+    async refreshAccessToken(resource_identifier: string) {
+        const { client_id, token_endpoint, resources } = this
 
-        const scope = scopes.find(scope => scope.key == key)
+        const resource = resources.find(resource => resource.identifier == resource_identifier)
 
-        if (!scope) throw new Error(`There exists no scope for the key "${key}".`)
+        if (!resource) throw new Error(`There exists no scope for the key "${resource_identifier}".`)
 
-        const joined_scope = this.joinPermissions(scope)
+        const joined_resources = this.joinScopes(resource)
 
         const refresh_token = this.getRefreshToken()
 
@@ -323,7 +342,7 @@ export class OAuthClient {
             body: new URLSearchParams({
                 client_id,
                 refresh_token,
-                scope: joined_scope,
+                scope: joined_resources,
                 grant_type: "refresh_token",
             }).toString()
         }
@@ -332,7 +351,7 @@ export class OAuthClient {
         const data = await result.json()
 
         if (result.status != 200) {
-            this.clearAccessToken(key)
+            this.clearAccessToken(resource_identifier)
             throw new Error(`${data.error} (${result.status}): ${data.error_description}`)
         }
         
@@ -351,29 +370,34 @@ export class OAuthClient {
                 throw new Error(`'expires_in' does not exists within the returned data.`)
             }
 
-            this.setAccessToken(key, { access_token, expires_in })
+            this.setAccessToken(resource_identifier, { access_token, expires_in })
             this.setRefreshToken(refresh_token)
+
+            return access_token
         }
     }
 
     /**
-     * Log outs the user by revoking the tokens and clearing the local storage for tokens and challenges. 
+     * Logouts the user. This method:
+     * - revokes all tokens stored in local storage (only if a `/revoke` endpoint is provided to the client),
+     * - clears all cookies in the browser related to the webpage (only if a `/logout` endpoint is provided to the client),
+     * - and clears local storage for tokens and challenges. 
      * 
      * OPS! Do not call this method if the user is logged out.
      * @param options Options.
      */
     async logout(options: LogoutOptions = { return_to: undefined }): Promise<void> {
-        const { logout_endpoint, scopes } = this
+        const { logout_endpoint, revoke_endpoint, resources } = this
         const { return_to } = options;
 
         const refresh_token = this.getRefreshToken()
-        if (refresh_token) this.revokeToken(refresh_token, "refresh_token")
+        if (refresh_token && revoke_endpoint) this.revokeToken(refresh_token, "refresh_token")
         this.clearRefreshToken()
 
-        scopes.forEach(async scope => {
-            const access_token = await this.getAccessToken(scope.key)
-            if (access_token) this.revokeToken(access_token, "access_token")
-            this.clearAccessToken(scope.key)
+        resources.forEach(async resource => {
+            const access_token = await this.getAccessToken(resource.identifier)
+            if (access_token && revoke_endpoint) this.revokeToken(access_token, "access_token")
+            this.clearAccessToken(resource.identifier)
         })
 
         this.clearCodeVerifier()
@@ -383,14 +407,18 @@ export class OAuthClient {
             return `${origin}${pathname}`
         })()
 
-        const url = new URL(logout_endpoint)
-        url.searchParams.set("post_logout_redirect_uri", redirect_uri)
-
-        window.location.href = url.toString()
+        if (logout_endpoint) {
+            const url = new URL(logout_endpoint)
+            url.searchParams.set("post_logout_redirect_uri", redirect_uri)
+    
+            window.location.href = url.toString()
+        }
     }
 
     private async revokeToken(token: string, token_type_hint: "access_token" | "refresh_token") {
         const { client_id, revoke_endpoint } = this
+
+        if (!revoke_endpoint) throw new Error(`No "/revoke" endpoint is specified.`)
 
         const init: RequestInit = {
             method: "POST",
@@ -406,18 +434,19 @@ export class OAuthClient {
     }
 
     /**
-     * Checks whether the user is authorized or not.
+     * Checks whether the user is authenticaded or not for a resource.
+     * @param {string} resource_identifier - The resource identifier. 
      * @returns `true` if authorized; `false` if not authorized.
      */
-    isAuthorized(key: string) {
-        const ACCESS_TOKEN_KEY = this.getAccessTokenKey(key)
+    isAuthorized(resource_identifier: string) {
+        const ACCESS_TOKEN_KEY = this.getAccessTokenKey(resource_identifier)
 
         return localStorage.getItem(ACCESS_TOKEN_KEY) ? true : false
     }
 
     /**
      * Gets information of the authenticated user. If `null` is returned, the client is not authenticated. The user information is cached upon fetching. 
-     * @throws if `user_info_endpoint` is not specified.
+     * @throws if `user_info_endpoint` or if an user information scope is not specified.
      */
     async getUserInfo<T>(): Promise<T | null> {
         if (this.fetching_user_info) await this.fetching_user_info
@@ -437,17 +466,17 @@ export class OAuthClient {
     }
 
     private async fetchUserInfo<T>(): Promise<T | null> {
-        const { user_info_endpoint, scopes } = this
+        const { user_info_endpoint, resources } = this
         
-        const user_info_key = scopes
-            .find(scope => scope.key == USERINFO_ENDPOINT_KEY)
-            ?.key
+        const user_info_resource_identifier = resources
+            .find(resource => resource.is_user_information_resource)
+            ?.identifier
 
-        if (!user_info_key) throw new Error("No scope was found for fetching user information.")
+        if (!user_info_resource_identifier) throw new Error("No scope was found for fetching user information.")
 
         if (!user_info_endpoint) throw new Error("The user information endpoint has not been specified.")
 
-        const access_token = await this.getAccessToken(user_info_key)
+        const access_token = await this.getAccessToken(user_info_resource_identifier)
 
         if (!access_token) return null
 
@@ -467,14 +496,16 @@ export class OAuthClient {
     }
 
     /**
-     * Introspects the access token. If `null` is returned, no access token is stored in local storage.
+     * Introspects the access token of a resource. If `null` is returned, no access token is stored in local storage.
+     * @param {string} resource_identifier - The resource identifier.
+     * @throws if `introspect_endpoint` is not specified.
      */
-    async introspectToken(key: string): Promise<TokenIntrospection> {
+    async introspectToken(resource_identifier: string): Promise<TokenIntrospection | null> {
         const { client_id, introspect_endpoint } = this
 
         if (!introspect_endpoint) throw new Error("The token introspection endpoint has not been specified.")
 
-        const access_token = await this.getAccessToken(key)
+        const access_token = await this.getAccessToken(resource_identifier)
 
         if (!access_token) return null
 
@@ -502,13 +533,13 @@ export class OAuthClient {
 
     /* STATE HANDLING METHODS */
 
-    private setAccessToken(key: string, params: { access_token: string, expires_in: number }): void {
+    private setAccessToken(resource_identifier: string, params: { access_token: string, expires_in: number }): void {
         const { access_token, expires_in } = params
 
         const expiration_time_ms = Date.now() + expires_in * 1000
 
-        const ACCESS_TOKEN_KEY = this.getAccessTokenKey(key)
-        const EXPIRATION_TIME_KEY = this.getExpirationTimeKey(key)
+        const ACCESS_TOKEN_KEY = this.getAccessTokenKey(resource_identifier)
+        const EXPIRATION_TIME_KEY = this.getExpirationTimeKey(resource_identifier)
 
         if (access_token) localStorage.setItem(ACCESS_TOKEN_KEY, access_token)
         if (expiration_time_ms) localStorage.setItem(EXPIRATION_TIME_KEY, expiration_time_ms.toString())
@@ -516,12 +547,12 @@ export class OAuthClient {
         this.user_info = null
         this.fetching_user_info = null
 
-        this.notifyStateChanged(key)
+        this.notifyStateChanged(resource_identifier)
     }
 
-    private clearAccessToken(key: string) {
-        const ACCESS_TOKEN_KEY = this.getAccessTokenKey(key)
-        const EXPIRATION_TIME_KEY = this.getExpirationTimeKey(key)
+    private clearAccessToken(resource_identifier: string) {
+        const ACCESS_TOKEN_KEY = this.getAccessTokenKey(resource_identifier)
+        const EXPIRATION_TIME_KEY = this.getExpirationTimeKey(resource_identifier)
 
         localStorage.removeItem(ACCESS_TOKEN_KEY);
         localStorage.removeItem(EXPIRATION_TIME_KEY);
@@ -529,25 +560,26 @@ export class OAuthClient {
         this.user_info = null
         this.fetching_user_info = null
 
-        this.notifyStateChanged(key)
+        this.notifyStateChanged(resource_identifier)
     }
 
     /**
-     * Return the access token from local storage. If `null` is returned, the client is not authenticated.
+     * Return the access token of a resource from local storage. If `null` is returned, the client is not authenticated.
+     * @param {string} resource_identifier - The resource identifier.
      * 
      * If the token is expired, the method will try to refresh the access token before returning: 
      * - If succeeds:   A new access token will be returned.
-     * - If fails:      The method will throw an error, and all tokens and code verifiers will be removed from local storage.
+     * - If fails:      The method will throw an error.
      */
-    public async getAccessToken(key: string, options: GetAccessTokenOptions = { refresh_if_expired: true }): Promise<string | null> {
+    public async getAccessToken(resource_identifier: string, options: GetAccessTokenOptions = { refresh_if_expired: true }): Promise<string | null> {
         const { refresh_if_expired } = options
 
-        const ACCESS_TOKEN_KEY = this.getAccessTokenKey(key)
+        const ACCESS_TOKEN_KEY = this.getAccessTokenKey(resource_identifier)
 
         if (!localStorage.getItem(ACCESS_TOKEN_KEY)) return null
 
-        if (refresh_if_expired && this.tokenIsExpired(key)) {
-            await this.refreshAccessToken(key)
+        if (refresh_if_expired && this.tokenIsExpired(resource_identifier)) {
+            await this.refreshAccessToken(resource_identifier)
         }
 
         const access_token = localStorage.getItem(ACCESS_TOKEN_KEY);
@@ -573,7 +605,6 @@ export class OAuthClient {
 
     private setCodeVerifier(code_verifier: string) {
         const { CODE_VERIFIER_KEY } = this
-
         localStorage.setItem(CODE_VERIFIER_KEY, code_verifier)
     }
 
@@ -593,11 +624,12 @@ export class OAuthClient {
     }
 
     /**
-     * Determines whether the `access_token` is expired or still valid.
+     * Determines whether the `access_token` on a resource is expired or still valid.
+     * @param {string} resource_identifier - The resource identifier.
      * @returns `true` if expired; `false` if still valid.
      */
-    tokenIsExpired(key: string) {
-        const EXPIRATION_TIME_KEY = this.getExpirationTimeKey(key)
+    tokenIsExpired(resource_identifier: string) {
+        const EXPIRATION_TIME_KEY = this.getExpirationTimeKey(resource_identifier)
         
         const expiration_time = Number(localStorage.getItem(EXPIRATION_TIME_KEY));
         const current_time = Date.now()
@@ -608,16 +640,17 @@ export class OAuthClient {
     /* SUBSCRIBE METHODS */
         
     /**
-     * Subscribe to the authentication status of the client. Specifically, the given callback function is called when the `access_token` is either added- or removed from local storage via internal class-methods. The subscription runs once on initialization.
+     * Subscribe to the `access_token` of a resource. The given callback function is called when the `access_token` of the resource is either added- or removed from local storage (via private class-methods). The callback function runs once on initialization.
+     * @param {string} resource_identifier - The resource identifier.
      * @returns an unsubscribe function.
      */
-    subscribe(key: string, cb: (access_token: string | null) => void): UnsubscribeToAuthState {
+    subscribe(resource_identifier: string, cb: (access_token: string | null) => void): UnsubscribeToAuthState {
 
-        const ACCESS_TOKEN_KEY = this.getAccessTokenKey(key)
+        const ACCESS_TOKEN_KEY = this.getAccessTokenKey(resource_identifier)
         
         const access_token = localStorage.getItem(ACCESS_TOKEN_KEY)
 
-        const state_changed_callback = { key, cb }
+        const state_changed_callback = { key: resource_identifier, cb }
 
         this.state_changed_callbacks.add(state_changed_callback)
 
@@ -628,45 +661,64 @@ export class OAuthClient {
         }
     }
 
-    private notifyStateChanged(key: string) {
+    private notifyStateChanged(resource_identifier: string) {
 
-        const ACCESS_TOKEN_KEY = this.getAccessTokenKey(key)
+        const ACCESS_TOKEN_KEY = this.getAccessTokenKey(resource_identifier)
         
         const access_token = localStorage.getItem(ACCESS_TOKEN_KEY)
 
-        this.state_changed_callbacks.forEach(({ key: callback_key, cb }) => {
-            if (callback_key == key) cb(access_token)
+        this.state_changed_callbacks.forEach(({ key, cb }) => {
+            if (key == resource_identifier) cb(access_token)
         })
     }
 
     // UTILITY FUNCTIONS
 
-    private joinScopes(scopes: OAuthScope[]): string {
-        return scopes
-            .map(this.joinPermissions)
+    private joinResources(resources: OAuthResource[]): string {
+        return resources
+            .map(this.joinScopes)
             .join(" ")
     }
 
-    private joinPermissions(scope: OAuthScope) {
-        return scope.permissions
-            .map(permission => `${scope.resource}${permission}`)
+    private joinScopes(resource: OAuthResource) {
+        return resource.scopes
+            .map(permission => `${resource.identifier}${permission}`)
             .join(" ")
     }
 
-    getAccessTokenKey(key: string) {
+    /**
+     * Returns the key for an access token of a resource. This key can be used to access the token from local storage manually.
+     * @param {string} resource_identifier - The resource identifier.
+     */
+    getAccessTokenKey(resource_identifier: string) {
         const { client_id } = this
 
-        return `${client_id}.${key}.OAuthAccessToken`
+        return `${client_id}.${resource_identifier}.OAuthAccessToken`
 
     }
 
-    getExpirationTimeKey(key: string) {
+    /**
+     * Returns the key for the expiration time of a resource. This key can be used to access the token from local storage manually.
+     * @param {string} resource_identifier - The resource identifier.
+     */
+    getExpirationTimeKey(resource_identifier: string) {
         const { client_id } = this
         
-        return `${client_id}.${key}.OAuthExpirationTime`
+        return `${client_id}.${resource_identifier}.OAuthExpirationTime`
     }
 }
 
+/**
+ * An utility function for fetching the endpoints of an oauth authorization provider.
+ * @param configuration_endpoint - the configuration endpoint
+ * 
+ * Example:
+ * ```ts
+ * const oauth_configuration_url = `${OAUTH_PROVIDER_URL}/.well-known/openid-configuration`
+ * 
+ * const oauth_settings = await fetchOAuthConfiguration(oauth_configuration_url)
+ * ```
+ */
 export async function fetchOAuthConfiguration(configuration_endpoint: string) {
 
     const result = await fetch(configuration_endpoint, { method: "GET" })
@@ -762,6 +814,9 @@ export type GetAccessTokenOptions = {
  */
 export type UnsubscribeToAuthState = () => void
 
+/**
+ * The returned data from a token introspection.
+ */
 export type TokenIntrospection = {
     active: true,
     scope: string,
@@ -771,4 +826,4 @@ export type TokenIntrospection = {
     userid: string,
 } | {
     active: false,
-} | null
+}

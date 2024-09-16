@@ -11,4 +11,4 @@ export function getContextOAuthClient(): OAuthClient {
     return getContext(client_context_key)
 }
 
-export const BUILDING_COMPONENT_DATABASE_KEY = "building-component-database"
+export const MICROSOFT_RESOURCE_IDENTIFIER = "https://graph.microsoft.com/"

@@ -1,7 +1,7 @@
 <script lang="ts">
-    import { PUBLIC_APP_ID, PUBLIC_BCD_API_DOMAIN, PUBLIC_MS_DOMAIN } from '$env/static/public';
-    import { OAuthClient, USERINFO_ENDPOINT_KEY, createOAuthClient, type OAuthScope } from '$lib'
-    import { BUILDING_COMPONENT_DATABASE_KEY, setContextOAuthClient } from '$lib/context'
+    import { PUBLIC_APP_ID, PUBLIC_MICROSOFT_DOMAIN } from '$env/static/public';
+    import { OAuthClient, createOAuthClient, type OAuthResource } from '$lib'
+    import { MICROSOFT_RESOURCE_IDENTIFIER, setContextOAuthClient } from '$lib/context'
     import { type AutodeskUserInformation } from '$lib/autodesk'
  
     const { children } = $props();
@@ -9,33 +9,28 @@
     let is_authorized = $state<boolean>(false)
     let user_info = $state<{ [key: string]: any }|null>(null);
 
-    const scopes: OAuthScope[] = [
+    const resources: OAuthResource[] = [
         {
-            key: USERINFO_ENDPOINT_KEY,
-            resource: "https://graph.microsoft.com/",
-            permissions: ["User.Read"]
-        },
-        {
-            key: BUILDING_COMPONENT_DATABASE_KEY,
-            resource: PUBLIC_BCD_API_DOMAIN,
-            permissions: ["data.read", "data.write"]
+            is_user_information_resource: true,
+            identifier: MICROSOFT_RESOURCE_IDENTIFIER,
+            scopes: ["User.Read"]
         },
     ]
 
     const client: OAuthClient = createOAuthClient({
         client_id: PUBLIC_APP_ID,
-        scopes,
-        authorization_endpoint: `${PUBLIC_MS_DOMAIN}/authorize`,
-        token_endpoint: `${PUBLIC_MS_DOMAIN}/token`,
-        logout_endpoint: `${PUBLIC_MS_DOMAIN}/logout`,
-        revoke_endpoint: `${PUBLIC_MS_DOMAIN}/revoke`,
-        introspect_endpoint: `${PUBLIC_MS_DOMAIN}/introspect`,
-        user_info_endpoint: "https://graph.microsoft.com/oidc/userinfo",
+        resources,
+        authorization_endpoint: `${PUBLIC_MICROSOFT_DOMAIN}/authorize`,
+        token_endpoint: `${PUBLIC_MICROSOFT_DOMAIN}/token`,
+        logout_endpoint: `${PUBLIC_MICROSOFT_DOMAIN}/logout`,
+        revoke_endpoint: `${PUBLIC_MICROSOFT_DOMAIN}/revoke`,
+        introspect_endpoint: `${PUBLIC_MICROSOFT_DOMAIN}/introspect`,
+        user_info_endpoint: `https://graph.microsoft.com/oidc/userinfo`,
     })
 
-    client.subscribe(USERINFO_ENDPOINT_KEY, async access_token => {
-        is_authorized = client.isAuthorized(USERINFO_ENDPOINT_KEY)
-        user_info = await client.getUserInfo<AutodeskUserInformation>()
+    client.subscribe(MICROSOFT_RESOURCE_IDENTIFIER, async () => {
+        is_authorized = client.isAuthorized(MICROSOFT_RESOURCE_IDENTIFIER)
+        user_info = await client.getUserInfo()
     })
 
     setContextOAuthClient(client)

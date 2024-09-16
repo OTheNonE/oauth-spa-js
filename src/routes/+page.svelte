@@ -4,7 +4,7 @@
 
     const client = getContextOAuthClient()
 
-    let selected_resource_key = $state<string>(client.scopes[0].key)
+    let selected_resource_identifier = $state<string>(client.resources[0].identifier)
 
     let is_authorized = $state<boolean>(false);
     let access_token = $state<string|null>(null);
@@ -19,8 +19,8 @@
 
     $effect(() => {
 
-        const unsubscibe = client.subscribe(selected_resource_key, async token => {
-            is_authorized = client.isAuthorized(selected_resource_key)
+        const unsubscibe = client.subscribe(selected_resource_identifier, async token => {
+            is_authorized = client.isAuthorized(selected_resource_identifier)
             access_token = token
             refresh_token = localStorage.getItem(client.REFRESH_TOKEN_KEY)
             user_info = await client.getUserInfo()
@@ -32,7 +32,7 @@
 
     async function refreshAccessToken() {
         try {
-            await client.refreshAccessToken(selected_resource_key);
+            await client.refreshAccessToken(selected_resource_identifier);
         } catch(e) {
             console.log(e)
         }
@@ -40,7 +40,7 @@
 
     async function introspectToken() {
         try {
-            const introspect = await client.introspectToken(selected_resource_key)
+            const introspect = await client.introspectToken(selected_resource_identifier)
             console.log(introspect)
         } catch(e) {
             console.log(e)
@@ -52,9 +52,9 @@
 <main>
     <h1> Home </h1>
 
-    <select bind:value={selected_resource_key}>
-        {#each client.scopes as scope}
-            <option value={scope.key}> {scope.key} ({scope.resource}) </option>
+    <select bind:value={selected_resource_identifier}>
+        {#each client.resources as resource}
+            <option value={resource.identifier}> {resource.identifier} </option>
         {/each}
     </select>
 
