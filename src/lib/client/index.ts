@@ -103,7 +103,7 @@ export class OAuthClient {
     /** The logout endpoint for logging out the user. */
     readonly logout_endpoint: string | null
  
-    /** The user information endpoint for fetching information of the authorized user. If null, then no endpoint has been supplied. */
+    /** The user information endpoint for fetching information of the authorized user. If `null`, then no endpoint has been supplied. */
     readonly user_info_endpoint: string | null
 
     /** The user information. */
@@ -671,7 +671,7 @@ export class OAuthClient {
 
     private joinScopes(resource: OAuthResource) {
         return resource.scopes
-            .map(permission => `${resource.identifier}${permission}`)
+            .map(scope => `${resource.identifier}${scope}`)
             .join(" ")
     }
 
