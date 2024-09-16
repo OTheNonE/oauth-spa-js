@@ -21,11 +21,11 @@ import { generateCodeChallenge, generateCodeVerifier } from "../challenge"
  * const client: OAuthClient = createOAuthClient({
  *     client_id: PUBLIC_APP_ID,
  *     resources,
- *     authorization_endpoint: `${PUBLIC_MS_DOMAIN}/authorize`,
- *     token_endpoint: `${PUBLIC_MS_DOMAIN}/token`,
- *     logout_endpoint: `${PUBLIC_MS_DOMAIN}/logout`,
- *     revoke_endpoint: `${PUBLIC_MS_DOMAIN}/revoke`,
- *     introspect_endpoint: `${PUBLIC_MS_DOMAIN}/introspect`,
+ *     authorization_endpoint: `${MICROSOFT_OAUTH_URL}/authorize`,
+ *     token_endpoint: `${MICROSOFT_OAUTH_URL}/token`,
+ *     logout_endpoint: `${MICROSOFT_OAUTH_URL}/logout`,
+ *     revoke_endpoint: `${MICROSOFT_OAUTH_URL}/revoke`,
+ *     introspect_endpoint: `${MICROSOFT_OAUTH_URL}/introspect`,
  *     user_info_endpoint: "https://graph.microsoft.com/oidc/userinfo",
  * })
  * ```

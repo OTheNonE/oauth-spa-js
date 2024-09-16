@@ -13,12 +13,23 @@ npm install oauth-spa-js
 ### Integrate authentication into your application
 Create the client and have it globally accessible in your application (verify authorization- and token endpoint urls with your authentication provider):
 ```ts
-const client = createOAuthClient({
+const resources: OAuthResource[] = [
+    {
+        is_user_information_resource: true,
+        identifier: RESOURCE_IDENTIFIER,
+        scopes: ["User.Read"]
+    },
+]
+
+const client: OAuthClient = createOAuthClient({
     client_id: PUBLIC_APP_ID,
-    authorization_endpoint: `${PUBLIC_SERVER_URL}/authorize`,
-    token_endpoint: `${PUBLIC_SERVER_URL}/token`,
-    user_info_endpoint: `${PUBLIC_SERVER_URL}/userinfo`,
-    scope: ["data:read"]
+    resources,
+    authorization_endpoint: `${SERVER_URL}/authorize`,
+    token_endpoint: `${SERVER_URL}/token`,
+    logout_endpoint: `${SERVER_URL}/logout`,
+    revoke_endpoint: `${SERVER_URL}/revoke`,
+    introspect_endpoint: `${SERVER_URL}/introspect`,
+    user_info_endpoint: USER_INFO_ENDPOINT,
 })
 ```
 
@@ -50,7 +61,7 @@ window.location.href = state ?? "/"
 And get the access token from the client (the token is automatically refreshed by the method if expired):
 ```ts
 try {
-    const access_token = await client.getAccessToken()
+    const access_token = await client.getAccessToken(RESOURCE_IDENTIFIER)
 } catch(e) {
     // Handle refresh access token error
 }
@@ -58,8 +69,8 @@ try {
 
 Subscribe to the authorization state of the client:
 ```ts
-client.subscribe(() => {
-    is_authorized = client.isAuthorized()
+client.subscribe(RESOURCE_IDENTIFIER, async token => {
+    is_authorized = client.isAuthorized(RESOURCE_IDENTIFIER)
     access_token = token
     user_info = await client.getUserInfo()
 })
