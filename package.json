@@ -1,7 +1,7 @@
 {
 	"author": "Ólavur Nón",
 	"name": "oauth-spa-js",
-	"description": "Single-Page Application Authorization Client for the OAuth 2.0 flow",
+	"description": "Single-Page Application Authorization Client for the OAuth 2.0 PKCE flow",
 	"license": "MIT",
 	"version": "0.8.0",
 	"homepage": "https://github.com/OTheNonE/oauth-spa-js",
