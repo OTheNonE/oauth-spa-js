@@ -3,7 +3,7 @@
 	"name": "oauth-spa-js",
 	"description": "Single-Page Application Authorization Client for the OAuth 2.0 flow",
 	"license": "MIT",
-	"version": "0.7.3",
+	"version": "0.8.0",
 	"homepage": "https://github.com/OTheNonE/oauth-spa-js",
 	"repository": {
 		"type": "git",

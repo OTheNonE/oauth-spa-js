@@ -2,7 +2,6 @@
     import { PUBLIC_APP_ID, PUBLIC_MICROSOFT_DOMAIN } from '$env/static/public';
     import { OAuthClient, createOAuthClient, type OAuthResource } from '$lib'
     import { MICROSOFT_RESOURCE_IDENTIFIER, setContextOAuthClient } from '$lib/context'
-    import { type AutodeskUserInformation } from '$lib/autodesk'
  
     const { children } = $props();
 

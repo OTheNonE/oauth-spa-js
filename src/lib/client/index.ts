@@ -1,10 +1,5 @@
 import { generateCodeChallenge, generateCodeVerifier } from "../challenge"
 
-/**
- * The default key for resources providing user information. Use this as key for the resource that provides user information.
- */
-// export const USERINFO_ENDPOINT_KEY = "oauth-user-information-endpoint-key"
-
 /** 
  * Creates an OAuth Client.
  * 
@@ -74,7 +69,7 @@ export type CreateOAuthClientOptions = {
  */
 export type OAuthResource = {
 
-    // key: string,
+    /** Set to `true` if this resource holds the user information. The method `client.getUserInfo()` uses the resource where this property is set to `true`. */
     is_user_information_resource?: true
 
     /** Resource identifier (also used in local storage key). */
@@ -83,12 +78,6 @@ export type OAuthResource = {
     /** Requested scopes. */
     scopes: string[],
 }
-
-// export type OAuthUserInformationResource = {
-//     user_information_resource: true,
-//     identifier: string,
-//     scopes: string[],
-// }
 
 /** The OAuth Authentication Client. */
 export class OAuthClient {
