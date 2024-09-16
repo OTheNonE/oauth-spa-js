@@ -1,3 +1,5 @@
+import { PUBLIC_APP_ID, PUBLIC_OAUTH_DOMAIN } from "$env/static/public";
+import type { CreateOAuthClientOptions, OAuthResource } from "$lib/client";
 
 /**
 * Represents a user profile information object.
@@ -132,3 +134,22 @@ export const AUTODESK_SCOPES = [
 ] as const
 
 export type AutodeskScope = typeof AUTODESK_SCOPES[number]
+
+
+const resources: OAuthResource[] = [
+    {
+        is_user_information_resource: true,
+        scopes: ["data:read"]
+    },
+]
+
+const options: CreateOAuthClientOptions = {
+    client_id: PUBLIC_APP_ID,
+    resources,
+    authorization_endpoint: `${PUBLIC_OAUTH_DOMAIN}/authorize`,
+    token_endpoint: `${PUBLIC_OAUTH_DOMAIN}/token`,
+    logout_endpoint: `${PUBLIC_OAUTH_DOMAIN}/logout`,
+    revoke_endpoint: `${PUBLIC_OAUTH_DOMAIN}/revoke`,
+    introspect_endpoint: `${PUBLIC_OAUTH_DOMAIN}/introspect`,
+    user_info_endpoint: `https://api.userprofile.autodesk.com/userinfo`,
+}

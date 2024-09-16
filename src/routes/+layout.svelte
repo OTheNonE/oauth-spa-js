@@ -1,7 +1,7 @@
 <script lang="ts">
-    import { PUBLIC_APP_ID, PUBLIC_MICROSOFT_DOMAIN } from '$env/static/public';
-    import { OAuthClient, createOAuthClient, type OAuthResource } from '$lib'
-    import { MICROSOFT_RESOURCE_IDENTIFIER, setContextOAuthClient } from '$lib/context'
+    import { PUBLIC_APP_ID, PUBLIC_OAUTH_DOMAIN } from '$env/static/public';
+    import { OAuthClient, createOAuthClient, type CreateOAuthClientOptions, type OAuthResource } from '$lib'
+    import { RESOURCE_IDENTIFIER, setContextOAuthClient } from '$lib/context'
  
     const { children } = $props();
 
@@ -11,24 +11,26 @@
     const resources: OAuthResource[] = [
         {
             is_user_information_resource: true,
-            identifier: MICROSOFT_RESOURCE_IDENTIFIER,
+            identifier: RESOURCE_IDENTIFIER,
             scopes: ["User.Read"]
         },
     ]
 
-    const client: OAuthClient = createOAuthClient({
+    const options: CreateOAuthClientOptions = {
         client_id: PUBLIC_APP_ID,
         resources,
-        authorization_endpoint: `${PUBLIC_MICROSOFT_DOMAIN}/authorize`,
-        token_endpoint: `${PUBLIC_MICROSOFT_DOMAIN}/token`,
-        logout_endpoint: `${PUBLIC_MICROSOFT_DOMAIN}/logout`,
-        revoke_endpoint: `${PUBLIC_MICROSOFT_DOMAIN}/revoke`,
-        introspect_endpoint: `${PUBLIC_MICROSOFT_DOMAIN}/introspect`,
+        authorization_endpoint: `${PUBLIC_OAUTH_DOMAIN}/authorize`,
+        token_endpoint: `${PUBLIC_OAUTH_DOMAIN}/token`,
+        logout_endpoint: `${PUBLIC_OAUTH_DOMAIN}/logout`,
+        revoke_endpoint: `${PUBLIC_OAUTH_DOMAIN}/revoke`,
+        introspect_endpoint: `${PUBLIC_OAUTH_DOMAIN}/introspect`,
         user_info_endpoint: `https://graph.microsoft.com/oidc/userinfo`,
-    })
+    }
 
-    client.subscribe(MICROSOFT_RESOURCE_IDENTIFIER, async () => {
-        is_authorized = client.isAuthorized(MICROSOFT_RESOURCE_IDENTIFIER)
+    const client: OAuthClient = createOAuthClient(options)
+
+    client.subscribe(RESOURCE_IDENTIFIER, async () => {
+        is_authorized = client.isAuthorized(RESOURCE_IDENTIFIER)
         user_info = await client.getUserInfo()
     })
 
@@ -68,7 +70,7 @@
         {#if user_info}
             <div> 
                 Hello {user_info.name}
-                <!-- <img src={user_info.picture} alt="user-profile" class="user-profile"> -->
+                <img src={user_info.picture} alt="user-profile" class="user-profile">
             </div>
         {/if}
         <button disabled={is_authorized} onclick={login}> Login </button>
