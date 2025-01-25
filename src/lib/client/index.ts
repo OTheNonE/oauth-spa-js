@@ -308,8 +308,6 @@ export class OAuthClient {
         const result = await fetch(token_endpoint, init)
         const data = await result.json()
 
-        console.log(data)
-
         if (result.status != 200) {
             this.clearAccessToken()
             throw new Error(`${data.error} (${result.status}): ${data.error_description}`)
