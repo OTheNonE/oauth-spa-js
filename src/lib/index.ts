@@ -1,9 +1,8 @@
 export { 
     createOAuthClient,
     OAuthClient,
-    fetchOAuthConfiguration,
-    type CreateOAuthClientOptions, 
-    type OAuthResource,
+    fetchOpenIdConfiguration,
+    type CreateOAuthClientOptions,
     type LoginWithRedirectOption,
     type HandleRedirectCallbackOptions,
     type LogoutOptions,

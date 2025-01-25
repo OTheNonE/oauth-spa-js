@@ -11,4 +11,4 @@ export function getContextOAuthClient(): OAuthClient {
     return getContext(client_context_key)
 }
 
-export const RESOURCE_IDENTIFIER = "https://graph.microsoft.com/"
+export const GRAPH_RESOURCE = "https://graph.microsoft.com/"

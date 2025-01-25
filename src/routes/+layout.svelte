@@ -1,48 +1,30 @@
 <script lang="ts">
-    import { PUBLIC_APP_ID, PUBLIC_OAUTH_DOMAIN } from '$env/static/public';
-    import { OAuthClient, createOAuthClient, type CreateOAuthClientOptions, type OAuthResource } from '$lib'
-    import { RESOURCE_IDENTIFIER, setContextOAuthClient } from '$lib/context'
+    import { setContextOAuthClient } from '$lib/context'
  
-    const { children } = $props();
+    const { children, data } = $props();
 
-    let is_authorized = $state<boolean>(false)
-    let user_info = $state<{ [key: string]: any }|null>(null);
+    const { oauth_api_client, oauth_graph_client } = data
 
-    const resources: OAuthResource[] = [
-        {
-            is_user_information_resource: true,
-            identifier: RESOURCE_IDENTIFIER,
-            scopes: ["User.Read"]
-        },
-    ]
+    let has_access_token = $state<boolean>(false)
+    let userinfo = $state<{ [key: string]: any }|null>(null);
 
-    const options: CreateOAuthClientOptions = {
-        client_id: PUBLIC_APP_ID,
-        resources,
-        authorization_endpoint: `${PUBLIC_OAUTH_DOMAIN}/authorize`,
-        token_endpoint: `${PUBLIC_OAUTH_DOMAIN}/token`,
-        logout_endpoint: `${PUBLIC_OAUTH_DOMAIN}/logout`,
-        revoke_endpoint: `${PUBLIC_OAUTH_DOMAIN}/revoke`,
-        introspect_endpoint: `${PUBLIC_OAUTH_DOMAIN}/introspect`,
-        user_info_endpoint: `https://graph.microsoft.com/oidc/userinfo`,
-    }
+    setContextOAuthClient(oauth_graph_client)
 
-    const client: OAuthClient = createOAuthClient(options)
-
-    client.subscribe(RESOURCE_IDENTIFIER, async () => {
-        is_authorized = client.isAuthorized(RESOURCE_IDENTIFIER)
-        user_info = await client.getUserInfo()
+    oauth_graph_client.subscribe(async () => {
+        has_access_token = oauth_graph_client.hasAccessToken()
+        userinfo = await oauth_graph_client.getUserInfo()
     })
-
-    setContextOAuthClient(client)
 
     const login = async () => {
         const redirect_uri = `${window.location.origin}/oauth/callback`
         const state = window.location.href
-        await client.loginWithRedirect({ redirect_uri, state })
+        await oauth_api_client.loginWithRedirect({ redirect_uri, state })
     }
 
-    const logout = async () => await client.logout()
+    const logout = async () => {
+        await oauth_graph_client.logout()
+        await oauth_api_client.logout()
+    }
 
     const navigations = [{
         href: "/",
@@ -67,14 +49,14 @@
     <div> APS | Authentication Client for Single Page Applications </div>
     
     <div class="navigation-bar">
-        {#if user_info}
+        {#if userinfo}
             <div> 
-                Hello {user_info.name}
-                <img src={user_info.picture} alt="user-profile" class="user-profile">
+                Hello {userinfo.name}
+                <img src={userinfo.picture} alt="user-profile" class="user-profile">
             </div>
         {/if}
-        <button disabled={is_authorized} onclick={login}> Login </button>
-        <button disabled={!is_authorized} onclick={logout}> Logout </button>
+        <button disabled={has_access_token} onclick={login}> Login </button>
+        <button disabled={!has_access_token} onclick={logout}> Logout </button>
     </div>
 </div>
 

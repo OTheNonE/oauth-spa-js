@@ -1,10 +1,15 @@
 <script lang="ts">
-    import { type AutodeskUserInformation } from '$lib/autodesk'
-    import { getContextOAuthClient } from "$lib/context";
 
-    const client = getContextOAuthClient()
+    const { data } = $props()
+    const { oauths } = data
 
-    let selected_resource_key = $state<string>(client.resources[0].key)
+    let selected_resource_key = $state<"Microsoft Graph" | "API">(oauths[0].name)
+    
+    let selected_client = $derived.by(() => {
+        let found_oauth = oauths.find(oauth => oauth.name == selected_resource_key)
+        if (!found_oauth) throw new Error("No oauth client found.")
+        return found_oauth.client
+    })
 
     let is_authorized = $state<boolean>(false);
     let access_token = $state<string|null>(null);
@@ -14,16 +19,16 @@
     let view_access_token = $state<boolean>(false);
     let view_refresh_token = $state<boolean>(false);
 
-    let user_info = $state<AutodeskUserInformation|null>(null);
-    let show_user_info = $state<boolean>(false)
+    let userinfo = $state<any>(null);
+    let show_userinfo = $state<boolean>(false)
 
     $effect(() => {
 
-        const unsubscibe = client.subscribe(selected_resource_key, async token => {
-            is_authorized = client.isAuthorized(selected_resource_key)
+        const unsubscibe = selected_client.subscribe(async token => {
+            is_authorized = selected_client.hasAccessToken()
             access_token = token
-            refresh_token = localStorage.getItem(client.REFRESH_TOKEN_KEY)
-            user_info = await client.getUserInfo()
+            refresh_token = localStorage.getItem(selected_client.REFRESH_TOKEN_KEY)
+            userinfo = selected_client.hasUserinfoEndpoint() ? await selected_client.getUserInfo() : null
         })
 
         return () => unsubscibe()
@@ -32,7 +37,7 @@
 
     async function refreshAccessToken() {
         try {
-            await client.refreshAccessToken(selected_resource_key);
+            await selected_client.refreshAccessToken();
         } catch(e) {
             console.log(e)
         }
@@ -40,7 +45,7 @@
 
     async function introspectToken() {
         try {
-            const introspect = await client.introspectToken(selected_resource_key)
+            const introspect = await selected_client.introspectToken()
             console.log(introspect)
         } catch(e) {
             console.log(e)
@@ -53,8 +58,8 @@
     <h1> Home </h1>
 
     <select bind:value={selected_resource_key}>
-        {#each client.resources as resource}
-            <option value={resource.key}> {resource.key} </option>
+        {#each oauths as { name }}
+            <option value={name}> {name} </option>
         {/each}
     </select>
 
@@ -126,14 +131,14 @@
     
             <div>
                 <button
-                    onclick={() => show_user_info = !show_user_info}
+                    onclick={() => show_userinfo = !show_userinfo}
                 > 
-                    {#if !show_user_info} Show User Information {:else} Hide User Information {/if}
+                    {#if !show_userinfo} Show User Information {:else} Hide User Information {/if}
                 </button>
 
-                {#if show_user_info}
+                {#if show_userinfo}
                 <pre class="scrollable"> 
-                    {JSON.stringify(user_info, undefined, 2)}
+                    {JSON.stringify(userinfo, undefined, 2)}
                 </pre>
                 {/if}
             </div>

@@ -138,7 +138,7 @@ export type AutodeskScope = typeof AUTODESK_SCOPES[number]
 
 const resources: OAuthResource[] = [
     {
-        is_user_information_resource: true,
+        is_userinfo_resource: true,
         scopes: ["data:read"]
     },
 ]
@@ -151,5 +151,5 @@ const options: CreateOAuthClientOptions = {
     logout_endpoint: `${PUBLIC_OAUTH_DOMAIN}/logout`,
     revoke_endpoint: `${PUBLIC_OAUTH_DOMAIN}/revoke`,
     introspect_endpoint: `${PUBLIC_OAUTH_DOMAIN}/introspect`,
-    user_info_endpoint: `https://api.userprofile.autodesk.com/userinfo`,
+    userinfo_endpoint: `https://api.userprofile.autodesk.com/userinfo`,
 }

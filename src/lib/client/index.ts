@@ -7,53 +7,21 @@ import { generateCodeChallenge, generateCodeVerifier } from "../challenge"
  * ```ts
  * const MICROSOFT_OAUTH_URL = `https://login.microsoftonline.com/${tenant}/oauth2/v2.0`
  * 
- * // Store this key globally
- * const MICROSOFT_RESOURCE_IDENTIFIER = "https://graph.microsoft.com/"
- * 
- * const resources: OAuthResource[] = [
- *     {
- *         is_user_information_resource: true,
- *         identifier: MICROSOFT_RESOURCE_IDENTIFIER,
- *         scopes: ["User.Read"]
- *     },
- * ]
- * 
  * const client: OAuthClient = createOAuthClient({
  *     client_id: PUBLIC_APP_ID,
- *     resources,
+ *     scopes: ["User.Read"],
+ *     resource: "https://graph.microsoft.com/",
  *     authorization_endpoint: `${MICROSOFT_OAUTH_URL}/authorize`,
  *     token_endpoint: `${MICROSOFT_OAUTH_URL}/token`,
  *     logout_endpoint: `${MICROSOFT_OAUTH_URL}/logout`,
  *     revoke_endpoint: `${MICROSOFT_OAUTH_URL}/revoke`,
  *     introspect_endpoint: `${MICROSOFT_OAUTH_URL}/introspect`,
- *     user_info_endpoint: "https://graph.microsoft.com/oidc/userinfo",
+ *     userinfo_endpoint: "https://graph.microsoft.com/oidc/userinfo",
  * })
  * ```
  */
 export function createOAuthClient(options: CreateOAuthClientOptions): OAuthClient {
-
-    const result = areResourceOptionsValid(options.resources)
-
-    if (!result.valid) throw new Error(result.reason)
-
     return new OAuthClient(options)
-}
-
-function areResourceOptionsValid(resources: OAuthResource[]): { valid: true } | { valid: false, reason: string } {
-
-    const amount_of_user_info_resources = resources
-        .filter(resources => resources.is_user_information_resource)
-        .length
-
-    if (amount_of_user_info_resources > 1) return { valid: false, reason: "There were multiple resources for fetching user information." }
-
-    const amount_of_resources_with_no_identifier = resources
-        .filter(resource => !resource.identifier)
-        .length
-
-    if (amount_of_resources_with_no_identifier > 1) return { valid: false, reason: "The were 1 >= resources with no identifiers." }
-
-    return { valid: true }
 }
 
 /**
@@ -63,9 +31,12 @@ export type CreateOAuthClientOptions = {
 
     /** The Client ID of the application used. */
     client_id: string,
-    
+
+    /** The resource to gain access to. */
+    resource?: string,
+
     /** The scope privilegies to request from the authorization service. */
-    resources: OAuthResource[],
+    scopes: Array<string>,
     
     /** The autorization endpoint for authorizing the user. */
     authorization_endpoint: string,
@@ -83,27 +54,8 @@ export type CreateOAuthClientOptions = {
     logout_endpoint?: string
 
     /** The user information endpoint where information of the authorized user is fetched. */
-    user_info_endpoint?: string
+    userinfo_endpoint?: string
 }
-
-/**
- * OAuth Resource.
- */
-export type OAuthResource = {
-
-    /** Set this to `true` if this resource has access to the users information. The method `client.getUserInfo()` uses the resource where this property is set to `true`. */
-    is_user_information_resource?: true
-
-    /** Resource identifier. If not specified, the local storage key for accessing the `access_token` of this resource will be `${client_id}.${client.DEFAULT_KEY}.OAuthAccessToken`. There can only be one resource with no identifier. */
-    identifier?: string,
-
-    /** Requested scopes. */
-    scopes: string[],
-}
-
-type OAuthResourceInternal = {
-    key: string
-} & OAuthResource
 
 /** The OAuth Authentication Client. */
 export class OAuthClient {
@@ -111,8 +63,11 @@ export class OAuthClient {
     /** The Client ID of the application used. */
     readonly client_id: string
 
+    /** The resource to gain access to. */
+    readonly resource?: string
+
     /** The scope privilegies to request for the user. */
-    readonly resources: OAuthResourceInternal[]
+    readonly scopes: Array<string>
 
     /** The autorization endpoint for authorizing the user. */
     readonly authorization_endpoint: string
@@ -130,13 +85,13 @@ export class OAuthClient {
     readonly logout_endpoint: string | null
  
     /** The user information endpoint for fetching information of the authorized user. If `null`, then no endpoint has been supplied. */
-    readonly user_info_endpoint: string | null
+    readonly userinfo_endpoint: string | null
 
     /** The user information. */
-    private user_info: any
+    private userinfo: any
 
     /** Fetching user information. If `null`, then no fetching is in progress. If `Promise<null>`, then `null` was returned from the fetch, and the promise is not cleaned up. */
-    private fetching_user_info: Promise<any | null> | null
+    private fetching_userinfo: Promise<any | null> | null
 
     /** The key for retrieving the code verifier from local storage. */
     readonly CODE_VERIFIER_KEY: string
@@ -144,44 +99,42 @@ export class OAuthClient {
     /** The key for retrieving the refresh token from local storage. */
     readonly REFRESH_TOKEN_KEY: string
 
+    /** The key for retrieving the access token from local storage. */
+    readonly ACCESS_TOKEN_KEY: string
+
+    /** The key for retrieving the access token expiration time from local storage. */
+    readonly ACCESS_TOKEN_EXPIRATION_TIME_KEY: string
+
     /** The search parameter for extracting the authorization code parameter from the return url. */
     readonly CODE_SEARCH_PARAMETER: string
 
     /** The search parameter for extracting the state parameter from the return url. */
     readonly STATE_SEARCH_PARAMETER: string
 
-    /** The default key used (if no identifier is specified) when client only holds a single resource. */
-    readonly DEFAULT_KEY: "default-resource-key"
-
-    private state_changed_callbacks: Set<{
-        key: string,
-        cb: (access_token: string | null) => void
-    }>
+    private state_changed_callbacks: Set<(access_token: string | null) => void>
     
     constructor(options: CreateOAuthClientOptions) {
-        this.client_id                      = options.client_id
-        
-        this.DEFAULT_KEY                    = "default-resource-key"
+        this.client_id                          = options.client_id
 
-        this.resources                      = options.resources.map(resource => {
-            const key = resource.identifier ?? this.DEFAULT_KEY
-            return { ...resource, key }
-        })
+        this.scopes                             = options.scopes
+        this.resource                           = options.resource
 
-        this.authorization_endpoint         = options.authorization_endpoint
-        this.token_endpoint                 = options.token_endpoint
-        this.introspect_endpoint            = options.introspect_endpoint ?? null
-        this.revoke_endpoint                = options.revoke_endpoint ?? null
-        this.logout_endpoint                = options.logout_endpoint ?? null
-        this.user_info_endpoint             = options.user_info_endpoint ?? null
-        this.user_info                      = null
-        this.fetching_user_info             = null
+        this.authorization_endpoint             = options.authorization_endpoint
+        this.token_endpoint                     = options.token_endpoint
+        this.introspect_endpoint                = options.introspect_endpoint ?? null
+        this.revoke_endpoint                    = options.revoke_endpoint ?? null
+        this.logout_endpoint                    = options.logout_endpoint ?? null
+        this.userinfo_endpoint                  = options.userinfo_endpoint ?? null
+        this.userinfo                           = null
+        this.fetching_userinfo                  = null
 
-        this.REFRESH_TOKEN_KEY              = `${options.client_id}.OAuthRefreshToken`
-        this.CODE_VERIFIER_KEY              = `${options.client_id}.OAuthCodeVerifier`
+        this.REFRESH_TOKEN_KEY                  = `${options.client_id}.OAuthRefreshToken`
+        this.CODE_VERIFIER_KEY                  = `${options.client_id}.OAuthCodeVerifier`
+        this.ACCESS_TOKEN_KEY                   = `${options.client_id}.${options.resource ?? "-"}.OAuthAccessToken`
+        this.ACCESS_TOKEN_EXPIRATION_TIME_KEY   = `${options.client_id}.${options.resource ?? "-"}.OAuthAccessTokenExpirationTime`
 
-        this.CODE_SEARCH_PARAMETER          = "code"
-        this.STATE_SEARCH_PARAMETER         = "state"
+        this.CODE_SEARCH_PARAMETER              = "code"
+        this.STATE_SEARCH_PARAMETER             = "state"
 
         this.state_changed_callbacks = new Set()
     }
@@ -204,9 +157,9 @@ export class OAuthClient {
      */
     async loginWithRedirect(options: LoginWithRedirectOption): Promise<void> {
         const { redirect_uri, prompt, state } = options
-        const { client_id, resources, authorization_endpoint } = this
+        const { client_id, scopes, authorization_endpoint, resource } = this
 
-        const joined_resources = this.joinResources(resources)
+        const scope = joinScopes(scopes, resource)
 
         const code_verifier = generateCodeVerifier()
         const code_challenge = await generateCodeChallenge(code_verifier)
@@ -219,7 +172,7 @@ export class OAuthClient {
             code_challenge,
             prompt,
             state,
-            scope: joined_resources,
+            scope,
             respose_mode: "query",
             response_type: "code",
             nonce: "12321321",
@@ -241,9 +194,7 @@ export class OAuthClient {
      * Handles the redirect from client.loginWithRedirect(). This function:
      * - takes the received code from the url
      * - the previously stored verification code from local storage
-     * - and fetches access tokens and refresh tokens from the resources by
-     *     - first using the authorization code, 
-     *     - and then using the refresh token,
+     * - and fetches access tokens and refresh tokens from the resources by using the authorization code,
      * - and stores the tokens in local storage.
      * 
      * Example:
@@ -264,22 +215,7 @@ export class OAuthClient {
      * ```
      */
     async handleRedirectCallback(options: HandleRedirectCallbackOptions): Promise<void> {
-        const { resources } = this
-
-        const [ first_resource, ...other_resources ] = resources
-
-        // The first token is obtained from the autorization code received from the authentication flow.
-        await this.fetchTokensFromAuthorizationCode(first_resource, options)
-
-        // All other tokens are received from the refresh token.
-        other_resources.forEach(async resource => await this.refreshAccessToken(resource.key))
-    }
-
-    /**
-     * Fetches an `access_token` and a `refresh_token` from a successfull auth flow and stores the tokens in local storage. 
-     */
-    private async fetchTokensFromAuthorizationCode(resource: OAuthResourceInternal, options: HandleRedirectCallbackOptions) {
-        const { client_id, token_endpoint, CODE_SEARCH_PARAMETER } = this
+        const { client_id, token_endpoint, scopes, resource, CODE_SEARCH_PARAMETER } = this
         const { redirect_uri } = options
 
         const code = this.getParamFromSearchParams(CODE_SEARCH_PARAMETER)
@@ -293,7 +229,7 @@ export class OAuthClient {
         }
         if (!code_verifier) throw new Error("No code verifier was stored in local storage.")
 
-        const joined_resources = this.joinScopes(resource)
+        const scope = joinScopes(scopes, resource)
 
         const init: RequestInit = {
             method: "POST",
@@ -303,7 +239,7 @@ export class OAuthClient {
                 code_verifier,
                 code,
                 redirect_uri,
-                scope: joined_resources,
+                scope,
                 grant_type: "authorization_code",
             }).toString()
         }
@@ -331,31 +267,26 @@ export class OAuthClient {
             throw new Error(`'refresh_token' does not exists within the returned data.`)
         }
 
-        this.setAccessToken(resource.key, { access_token, expires_in })
+        this.setAccessToken({ access_token, expires_in })
         this.setRefreshToken(refresh_token)
     }
 
     /**
      * Refreshes the access token by using the refresh token.
-     * @param {string} [resource_key] - The resource key. (default: `this.DEFAULT_KEY`)
      * 
      * Example:
      * ```ts
      * try {
-     *     access_token = await client.refreshAccessToken(MICROSOFT_RESOURCE_IDENTIFIER);
+     *     access_token = await client.refreshAccessToken();
      * } catch(e) {
      *     // Handle error
      * }
      * ```
      */
-    async refreshAccessToken(resource_key: string = this.DEFAULT_KEY) {
-        const { client_id, token_endpoint, resources } = this
+    async refreshAccessToken() {
+        const { client_id, token_endpoint, scopes, resource } = this
 
-        const resource = resources.find(resource => resource.key == resource_key)
-
-        if (!resource) throw new Error(`There exists no scope for the key "${resource_key}".`)
-
-        const joined_resources = this.joinScopes(resource)
+        const scope = joinScopes(scopes, resource)
 
         const refresh_token = this.getRefreshToken()
 
@@ -369,7 +300,7 @@ export class OAuthClient {
             body: new URLSearchParams({
                 client_id,
                 refresh_token,
-                scope: joined_resources,
+                scope,
                 grant_type: "refresh_token",
             }).toString()
         }
@@ -377,8 +308,10 @@ export class OAuthClient {
         const result = await fetch(token_endpoint, init)
         const data = await result.json()
 
+        console.log(data)
+
         if (result.status != 200) {
-            this.clearAccessToken(resource_key)
+            this.clearAccessToken()
             throw new Error(`${data.error} (${result.status}): ${data.error_description}`)
         }
         
@@ -397,7 +330,7 @@ export class OAuthClient {
                 throw new Error(`'expires_in' does not exists within the returned data.`)
             }
 
-            this.setAccessToken(resource_key, { access_token, expires_in })
+            this.setAccessToken({ access_token, expires_in })
             this.setRefreshToken(refresh_token)
 
             return access_token
@@ -405,36 +338,35 @@ export class OAuthClient {
     }
 
     /**
-     * Logouts the user. This method:
-     * - revokes all tokens stored in local storage (only if a `/revoke` endpoint is provided to the client),
+     * Logout the user. This method:
      * - clears all cookies in the browser related to the webpage (only if a `/logout` endpoint is provided to the client),
      * - and clears local storage for tokens and challenges. 
      * 
      * OPS! Do not call this method if the user is logged out.
      * @param options Options.
      */
-    async logout(options: LogoutOptions = { return_to: undefined }): Promise<void> {
-        const { logout_endpoint, revoke_endpoint, resources } = this
-        const { return_to } = options;
+    async logout(options: LogoutOptions = {}): Promise<void> {
+        const { logout_endpoint } = this
+        const { return_to, revoke_access_token, revoke_refresh_token } = options;
 
-        const refresh_token = this.getRefreshToken()
-        if (refresh_token && revoke_endpoint) this.revokeToken(refresh_token, "refresh_token")
+        if (revoke_access_token) {
+            await this.revokeAccessToken()
+        }
+
+        if (revoke_refresh_token) {
+            await this.revokeRefreshToken()
+        }
+
+        this.clearAccessToken()
         this.clearRefreshToken()
-
-        resources.forEach(async resource => {
-            const access_token = await this.getAccessToken(resource.key)
-            if (access_token && revoke_endpoint) this.revokeToken(access_token, "access_token")
-            this.clearAccessToken(resource.key)
-        })
-
         this.clearCodeVerifier()
 
-        const redirect_uri = return_to ?? (() => {
-            const { origin, pathname } = window.location
-            return `${origin}${pathname}`
-        })()
-
         if (logout_endpoint) {
+            const redirect_uri = return_to ?? (() => {
+                const { origin, pathname } = window.location
+                return `${origin}${pathname}`
+            })()
+
             const url = new URL(logout_endpoint)
             url.searchParams.set("post_logout_redirect_uri", redirect_uri)
     
@@ -442,68 +374,85 @@ export class OAuthClient {
         }
     }
 
-    private async revokeToken(token: string, token_type_hint: "access_token" | "refresh_token") {
-        const { client_id, revoke_endpoint } = this
+    /**
+     * Revokes the access token by calling the `/revoke` endpoint.
+     */
+    private async revokeAccessToken() {
+
+        const { client_id, revoke_endpoint, ACCESS_TOKEN_KEY } = this
+
+        const access_token = localStorage.getItem(ACCESS_TOKEN_KEY)
+
+        if (!access_token) return
 
         if (!revoke_endpoint) throw new Error(`No "/revoke" endpoint is specified.`)
 
-        const init: RequestInit = {
-            method: "POST",
-            headers: { "Content-Type": "application/x-www-form-urlencoded" },
-            body: new URLSearchParams({
-                token,
-                token_type_hint,
-                client_id,
-            }).toString()
-        }
-
-        await fetch(revoke_endpoint, init)
+        await revokeToken({
+            client_id,
+            revoke_endpoint,
+            token: access_token,
+            token_type_hint: "access_token"
+        })
     }
 
     /**
-     * Checks whether the user is authenticaded or not for a resource.
-     * @param {string} [resource_key] - The resource key. (default: `this.DEFAULT_KEY`)
-     * @returns `true` if authorized; `false` if not authorized.
+     * Revokes the refresh token by calling the `/revoke` endpoint.
      */
-    isAuthorized(resource_key: string = this.DEFAULT_KEY) {
-        const ACCESS_TOKEN_KEY = this.getAccessTokenKey(resource_key)
+    private async revokeRefreshToken() {
+
+        const { client_id, revoke_endpoint, REFRESH_TOKEN_KEY } = this
+
+        const refresh_token = localStorage.getItem(REFRESH_TOKEN_KEY)
+
+        if (!refresh_token) return
+
+        if (!revoke_endpoint) throw new Error(`No "/revoke" endpoint is specified.`)
+
+        await revokeToken({
+            client_id,
+            revoke_endpoint,
+            token: refresh_token,
+            token_type_hint: "refresh_token"
+        })
+    }
+
+    /**
+     * Checks whether the user has an access token or not. This method can be used to check if the user is authorized.
+     */
+    hasAccessToken() {
+        const { ACCESS_TOKEN_KEY } = this
 
         return localStorage.getItem(ACCESS_TOKEN_KEY) ? true : false
     }
 
     /**
-     * Gets information of the authenticated user. If `null` is returned, the client is not authenticated. The user information is cached upon fetching. 
-     * @throws if `user_info_endpoint` or if an user information scope is not specified.
+     * Gets information about the authenticated user. If `null` is returned, the client is not authenticated. The user information is cached upon fetching. 
+     * @throws if `userinfo_endpoint` is not specified.
      */
     async getUserInfo<T>(): Promise<T | null> {
-        if (this.fetching_user_info) await this.fetching_user_info
+        if (this.fetching_userinfo) await this.fetching_userinfo
         
-        const { user_info } = this
+        const { userinfo } = this
         
-        if (user_info) return user_info
+        if (userinfo) return userinfo
+
         else {
-            this.fetching_user_info = this.fetchUserInfo()
+            this.fetching_userinfo = this.fetchUserInfo()
 
-            this.user_info = await this.fetching_user_info
+            this.userinfo = await this.fetching_userinfo
 
-            this.fetching_user_info = null
+            this.fetching_userinfo = null
 
-            return this.user_info
+            return this.userinfo
         }
     }
 
     private async fetchUserInfo<T>(): Promise<T | null> {
-        const { user_info_endpoint, resources } = this
-        
-        const user_info_resource_key = resources
-            .find(resource => resource.is_user_information_resource)
-            ?.key
+        const { userinfo_endpoint } = this
 
-        if (!user_info_resource_key) throw new Error("No scope was found for fetching user information.")
+        if (!userinfo_endpoint) throw new Error("The user information endpoint has not been specified.")
 
-        if (!user_info_endpoint) throw new Error("The user information endpoint has not been specified.")
-
-        const access_token = await this.getAccessToken(user_info_resource_key)
+        const access_token = await this.getAccessToken()
 
         if (!access_token) return null
 
@@ -512,10 +461,10 @@ export class OAuthClient {
             headers: { Authorization: access_token },
         }
 
-        const result = await fetch(user_info_endpoint, init)
+        const result = await fetch(userinfo_endpoint, init)
         const data = await result.json()
 
-        if (result.status != 200) {
+        if (!result.ok) {
             throw new Error(`${data.error} (${result.status}): ${data.error_description}`)
         }
 
@@ -523,16 +472,22 @@ export class OAuthClient {
     }
 
     /**
+     * Check if the `userinfo_endpoint` is specified.
+     */
+    hasUserinfoEndpoint(): boolean {
+        return this.userinfo_endpoint !== null
+    }
+
+    /**
      * Introspects the access token of a resource. If `null` is returned, no access token is stored in local storage.
-     * @param {string} [resource_key] - The resource key. (default: `this.DEFAULT_KEY`)
      * @throws if `introspect_endpoint` is not specified.
      */
-    async introspectToken(resource_key: string = this.DEFAULT_KEY): Promise<TokenIntrospection | null> {
+    async introspectToken(): Promise<TokenIntrospection | null> {
         const { client_id, introspect_endpoint } = this
 
         if (!introspect_endpoint) throw new Error("The token introspection endpoint has not been specified.")
 
-        const access_token = await this.getAccessToken(resource_key)
+        const access_token = await this.getAccessToken()
 
         if (!access_token) return null
 
@@ -559,53 +514,48 @@ export class OAuthClient {
 
     /* STATE HANDLING METHODS */
     
-    private setAccessToken(resource_key: string, params: { access_token: string, expires_in: number }): void {
+    private setAccessToken(params: { access_token: string, expires_in: number }): void {
         const { access_token, expires_in } = params
+        const { ACCESS_TOKEN_KEY, ACCESS_TOKEN_EXPIRATION_TIME_KEY } = this
 
         const expiration_time_ms = Date.now() + expires_in * 1000
 
-        const ACCESS_TOKEN_KEY = this.getAccessTokenKey(resource_key)
-        const EXPIRATION_TIME_KEY = this.getExpirationTimeKey(resource_key)
-
         if (access_token) localStorage.setItem(ACCESS_TOKEN_KEY, access_token)
-        if (expiration_time_ms) localStorage.setItem(EXPIRATION_TIME_KEY, expiration_time_ms.toString())
+        if (expiration_time_ms) localStorage.setItem(ACCESS_TOKEN_EXPIRATION_TIME_KEY, expiration_time_ms.toString())
 
-        this.user_info = null
-        this.fetching_user_info = null
+        this.userinfo = null
+        this.fetching_userinfo = null
 
-        this.notifyStateChanged(resource_key)
+        this.notifyStateChanged()
     }
 
-    private clearAccessToken(resource_key: string) {
-        const ACCESS_TOKEN_KEY = this.getAccessTokenKey(resource_key)
-        const EXPIRATION_TIME_KEY = this.getExpirationTimeKey(resource_key)
+    private clearAccessToken() {
+        const { ACCESS_TOKEN_EXPIRATION_TIME_KEY, ACCESS_TOKEN_KEY } = this
 
         localStorage.removeItem(ACCESS_TOKEN_KEY);
-        localStorage.removeItem(EXPIRATION_TIME_KEY);
+        localStorage.removeItem(ACCESS_TOKEN_EXPIRATION_TIME_KEY);
 
-        this.user_info = null
-        this.fetching_user_info = null
+        this.userinfo = null
+        this.fetching_userinfo = null
 
-        this.notifyStateChanged(resource_key)
+        this.notifyStateChanged()
     }
 
     /**
-     * Return the access token of a resource from local storage. If `null` is returned, the client is not authenticated.
-     * @param {string} [resource_key] - The resource key. (default: `this.DEFAULT_KEY`)
+     * Return the access token from local storage. If `null` is returned, the client is not authenticated.
      * 
      * If the token is expired, the method will try to refresh the access token before returning: 
      * - If succeeds:   A new access token will be returned.
      * - If fails:      The method will throw an error.
      */
-    public async getAccessToken(resource_key: string = this.DEFAULT_KEY, options: GetAccessTokenOptions = { refresh_if_expired: true }): Promise<string | null> {
+    public async getAccessToken(options: GetAccessTokenOptions = { refresh_if_expired: true }): Promise<string | null> {
         const { refresh_if_expired } = options
-
-        const ACCESS_TOKEN_KEY = this.getAccessTokenKey(resource_key)
+        const { ACCESS_TOKEN_KEY } = this
 
         if (!localStorage.getItem(ACCESS_TOKEN_KEY)) return null
 
-        if (refresh_if_expired && this.tokenIsExpired(resource_key)) {
-            await this.refreshAccessToken(resource_key)
+        if (refresh_if_expired && this.tokenIsExpired()) {
+            await this.refreshAccessToken()
         }
 
         const access_token = localStorage.getItem(ACCESS_TOKEN_KEY);
@@ -624,7 +574,7 @@ export class OAuthClient {
         localStorage.removeItem(REFRESH_TOKEN_KEY);
     }
 
-    private getRefreshToken(): string | null {
+    getRefreshToken(): string | null {
         const { REFRESH_TOKEN_KEY } = this
         return localStorage.getItem(REFRESH_TOKEN_KEY);
     }
@@ -645,14 +595,13 @@ export class OAuthClient {
     }
 
     /**
-     * Determines whether the `access_token` on a resource is expired or still valid.
-     * @param {string} [resource_key] - The resource key. (default: `this.DEFAULT_KEY`)
+     * Determines whether the `access_token` is expired or still valid.
      * @returns `true` if expired; `false` if still valid.
      */
-    tokenIsExpired(resource_key: string = this.DEFAULT_KEY) {
-        const EXPIRATION_TIME_KEY = this.getExpirationTimeKey(resource_key)
+    tokenIsExpired() {
+        const { ACCESS_TOKEN_EXPIRATION_TIME_KEY } = this
         
-        const expiration_time = Number(localStorage.getItem(EXPIRATION_TIME_KEY));
+        const expiration_time = Number(localStorage.getItem(ACCESS_TOKEN_EXPIRATION_TIME_KEY));
         const current_time = Date.now()
 
         return current_time > expiration_time
@@ -661,36 +610,29 @@ export class OAuthClient {
     /* SUBSCRIBE METHODS */
         
     /**
-     * Subscribe to the `access_token` of a resource. The given callback function is called when the `access_token` of the resource is either added- or removed from local storage (via private class-methods). The callback function runs once on initialization.
-     * @param {string} [resource_key] - The resource key. (default: `this.DEFAULT_KEY`)
+     * Subscribe to the `access_token`. The given callback function is called when the `access_token` is either added- or removed from local storage (via private class-methods). The callback function runs once on initialization.
      * @returns an unsubscribe function.
      */
-    subscribe(resource_key: string = this.DEFAULT_KEY, cb: (access_token: string | null) => void): UnsubscribeToAuthState {
-
-        const ACCESS_TOKEN_KEY = this.getAccessTokenKey(resource_key)
+    subscribe(cb: (access_token: string | null) => void): UnsubscribeToAuthState {
+        const { ACCESS_TOKEN_KEY } = this
         
         const access_token = localStorage.getItem(ACCESS_TOKEN_KEY)
 
-        const state_changed_callback = { key: resource_key, cb }
-
-        this.state_changed_callbacks.add(state_changed_callback)
+        this.state_changed_callbacks.add(cb)
 
         cb(access_token) // Call function on initialization.
 
         return () => {
-            this.state_changed_callbacks.delete(state_changed_callback)
+            this.state_changed_callbacks.delete(cb)
         }
     }
 
-    private notifyStateChanged(resource_key: string) {
-
-        const ACCESS_TOKEN_KEY = this.getAccessTokenKey(resource_key)
+    private notifyStateChanged() {
+        const { ACCESS_TOKEN_KEY } = this
         
         const access_token = localStorage.getItem(ACCESS_TOKEN_KEY)
 
-        this.state_changed_callbacks.forEach(({ key, cb }) => {
-            if (key == resource_key) cb(access_token)
-        })
+        this.state_changed_callbacks.forEach(cb => cb(access_token))
     }
 
     // UTILITY FUNCTIONS
@@ -700,38 +642,18 @@ export class OAuthClient {
         return params.get(param)
     }
 
-    private joinResources(resources: OAuthResource[]): string {
-        return resources
-            .map(this.joinScopes)
-            .join(" ")
-    }
+}
 
-    private joinScopes(resource: OAuthResource) {
-        return resource.scopes
-            .map(scope => resource.identifier ? `${resource.identifier}${scope}` : scope)
-            .join(" ")
-    }
 
-    /**
-     * Returns the key for an access token of a resource. This key can be used to access the token from local storage manually.
-     * @param {string} [resource_key] - The resource key. (default: `this.DEFAULT_KEY`)
-     */
-    getAccessTokenKey(resource_key: string = this.DEFAULT_KEY) {
-        const { client_id } = this
-
-        return `${client_id}.${resource_key}.OAuthAccessToken`
-
-    }
-
-    /**
-     * Returns the key for the expiration time of a resource. This key can be used to access the token from local storage manually.
-     * @param {string} [resource_key] - The resource key. (default: `this.DEFAULT_KEY`)
-     */
-    getExpirationTimeKey(resource_key: string = this.DEFAULT_KEY) {
-        const { client_id } = this
-        
-        return `${client_id}.${resource_key}.OAuthExpirationTime`
-    }
+type OpenIDConfiguration = {
+    token_endpoint: string,
+    authorization_endpoint: string,
+    userinfo_endpoint?: string,
+    end_session_endpoint?: string, 
+    device_authorization_endpoint?: string,
+    introspection_endpoint?: string,
+    revocation_endpoint?: string, 
+    jwks_uri?: string,
 }
 
 /**
@@ -745,38 +667,43 @@ export class OAuthClient {
  * const oauth_settings = await fetchOAuthConfiguration(oauth_configuration_url)
  * ```
  */
-export async function fetchOAuthConfiguration(configuration_endpoint: string) {
+export async function fetchOpenIdConfiguration(well_known_url: string): Promise<OpenIDConfiguration> {
 
-    const result = await fetch(configuration_endpoint, { method: "GET" })
-    const data: unknown = await result.json()
+    const result = await fetch(well_known_url, { method: "GET" })
+    const data = await result.json()
 
-    if (typeof data != "object" || data == null) throw new Error(`typeof data was not of type "object".`)
+    if (typeof data?.token_endpoint !== "string") throw new Error(`"token_endpoint" did not exist in the configuration endpoint.`);
+    if (typeof data?.authorization_endpoint !== "string") throw new Error(`"authorization_endpoint" did not exist in the configuration endpoint.`);
+    
+    return data
+}
 
-    if (!("token_endpoint" in data && typeof data.token_endpoint == "string")) throw new Error(`"token_endpoint" did not exist in the configuration endpoint.`);
-    if (!("authorization_endpoint" in data && typeof data.authorization_endpoint == "string")) throw new Error(`"authorization_endpoint" did not exist in the configuration endpoint.`);
+async function revokeToken(params: {
+    revoke_endpoint: string
+    client_id: string,
+    token: string,
+    token_type_hint: "access_token" | "refresh_token",
+}) {
 
-    const userinfo_endpoint             = "userinfo_endpoint"               in data && typeof data.userinfo_endpoint                == "string" ? data.userinfo_endpoint                : null
-    const end_session_endpoint          = "end_session_endpoint"            in data && typeof data.end_session_endpoint             == "string" ? data.end_session_endpoint             : null
-    const device_authorization_endpoint = "device_authorization_endpoint"   in data && typeof data.device_authorization_endpoint    == "string" ? data.device_authorization_endpoint    : null
-    const introspection_endpoint        = "introspection_endpoint"          in data && typeof data.introspection_endpoint           == "string" ? data.introspection_endpoint           : null
-    const revocation_endpoint           = "revocation_endpoint"             in data && typeof data.revocation_endpoint              == "string" ? data.revocation_endpoint              : null
-    const jwks_uri                      = "jwks_uri"                        in data && typeof data.jwks_uri                         == "string" ? data.jwks_uri                         : null
+    const { token, token_type_hint, client_id, revoke_endpoint } = params
 
-    const { 
-        token_endpoint,
-        authorization_endpoint,
-    } = data
-
-    return {
-        token_endpoint,
-        authorization_endpoint,
-        userinfo_endpoint,
-        end_session_endpoint, 
-        device_authorization_endpoint,
-        introspection_endpoint,
-        revocation_endpoint, 
-        jwks_uri,
+    const init: RequestInit = {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+            token,
+            token_type_hint,
+            client_id,
+        }).toString()
     }
+
+    const response = await fetch(revoke_endpoint, init)
+}
+
+function joinScopes(scopes: Array<string>, resource?: string) {
+    return scopes
+        .map(scope => resource ? `${resource}/${scope}` : scope)
+        .join(" ")
 }
 
 /**
@@ -820,6 +747,16 @@ export type LogoutOptions = {
      * A url to send the user to after logging out. If not specified, the user will be redirected back to his original location.
      */
     return_to?: string,
+
+    /**
+     * Revoke the access token when logging out (throws if the `/revoke` endpoint is not specified).
+     */
+    revoke_access_token?: boolean,
+
+    /**
+     * Revoke the refresh token when logging out (throws if the `/revoke` endpoint is not specified).
+     */
+    revoke_refresh_token?: boolean,
 }
 
 /**

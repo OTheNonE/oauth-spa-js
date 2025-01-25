@@ -1,19 +1,21 @@
 <script lang="ts">
     import { getContextOAuthClient } from "$lib/context";
-    import { page } from "$app/stores";
+    import { page } from "$app/state";
     import { goto } from "$app/navigation"
+
+    const { data } = $props()
+    const { oauth_api_client, oauth_graph_client } = data
     
     const handleCallback = async () => {
         
-        const client = getContextOAuthClient()
-        
-        const { origin, pathname } = $page.url
+        const { origin, pathname } = page.url
         const redirect_uri = `${origin}${pathname}`
         
-        const state = $page.url.searchParams.get(client.STATE_SEARCH_PARAMETER)
+        const state = page.url.searchParams.get(oauth_graph_client.STATE_SEARCH_PARAMETER)
     
         try {
-            await client.handleRedirectCallback({ redirect_uri })
+            await oauth_api_client.handleRedirectCallback({ redirect_uri })
+            await oauth_graph_client.refreshAccessToken()
         } catch(e) {
             console.log(e)
         }
